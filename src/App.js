@@ -14,18 +14,28 @@ import './App.css';
 function App() {
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('accessToken'));
 
   useEffect(() => {
-    const jwtToken = localStorage.getItem('jwtToken');
-    if (!jwtToken) {
-      navigate('/dang-nhap');
-    }
-  }, [navigate]);
+    const checkAuth = () => {
+      const accessToken = localStorage.getItem('accessToken');
+      setIsAuthenticated(!!accessToken);
+      if (!accessToken && window.location.pathname !== '/dang-nhap') {
+        navigate('/dang-nhap', { replace: true });
+      }
+    };
 
-  const isAuthenticated = () => {
-    const jwtToken = localStorage.getItem('jwtToken');
-    return jwtToken !== null;
-  };
+    // Kiểm tra ngay khi component mount
+    checkAuth();
+
+    // Lắng nghe sự thay đổi của localStorage
+    const handleStorageChange = () => {
+      checkAuth();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [navigate]);
 
   const handleToggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
@@ -33,16 +43,16 @@ function App() {
 
   return (
     <div className="d-flex">
-      {isAuthenticated() && <Sidebar onToggle={handleToggleSidebar} isCollapsed={isCollapsed} />}
-      <div className="flex-grow-1" style={{ marginLeft: isAuthenticated() ? (isCollapsed ? '70px' : '250px') : '0', transition: 'margin-left 0.3s ease' }}>
-        {isAuthenticated() && <Navbar />}
+      {isAuthenticated && <Sidebar onToggle={handleToggleSidebar} isCollapsed={isCollapsed} />}
+      <div className="flex-grow-1" style={{ marginLeft: isAuthenticated ? (isCollapsed ? '70px' : '250px') : '0', transition: 'margin-left 0.3s ease' }}>
+        {isAuthenticated && <Navbar />}
         <div className="p-4 bg-light min-vh-100">
           <Routes>
-            <Route path="/dang-nhap" element={!isAuthenticated() ? <DangNhap /> : <Navigate to="/" />} />
-            <Route path="/" element={isAuthenticated() ? <Home /> : <Navigate to="/dang-nhap" />} />
-            <Route path="/cham-cong" element={isAuthenticated() ? <ChamCong /> : <Navigate to="/dang-nhap" />} />
-            <Route path="/quan-ly-bang-cham-cong" element={isAuthenticated() ? <QuanLyBangChamCong /> : <Navigate to="/dang-nhap" />} />
-            <Route path="/quan-ly-danh-sach-nhan-su" element={isAuthenticated() ? <QuanLyDanhSachNhanSu /> : <Navigate to="/dang-nhap" />} />
+            <Route path="/dang-nhap" element={<DangNhap />} />
+            <Route path="/" element={isAuthenticated ? <Home /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/cham-cong" element={isAuthenticated ? <ChamCong /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/quan-ly-bang-cham-cong" element={isAuthenticated ? <QuanLyBangChamCong /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/quan-ly-danh-sach-nhan-su" element={isAuthenticated ? <QuanLyDanhSachNhanSu /> : <Navigate to="/dang-nhap" replace />} />
           </Routes>
         </div>
       </div>

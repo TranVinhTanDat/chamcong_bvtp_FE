@@ -1,2 +1,2 @@
-const URL_BASE_API = 'http://localhost:8080'; // Thay bằng URL backend nếu khác
-export default URL_BASE_API;
+const DIA_CHI_API = process.env.REACT_APP_API_URL || 'http://localhost:8080'; // Fallback nếu .env không tải
+export default DIA_CHI_API;

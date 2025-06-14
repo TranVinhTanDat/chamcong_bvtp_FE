@@ -43,7 +43,7 @@ function Sidebar({ onToggle, isCollapsed }) {
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem('jwtToken');
+    localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('role');
     localStorage.removeItem('userId');

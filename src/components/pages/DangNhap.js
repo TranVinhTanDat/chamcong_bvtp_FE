@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import { toast } from 'react-toastify';
@@ -7,6 +7,13 @@ import logoTanPhu from '../../components/assets/images/logo tan phu_hinh.png'; /
 function DangNhap() {
   const [credentials, setCredentials] = useState({ tenDangNhap: '', matKhau: '' });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const accessToken = localStorage.getItem('accessToken');
+    if (accessToken) {
+      navigate('/', { replace: true }); // Chuyển hướng ngay nếu đã đăng nhập
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -20,13 +27,13 @@ function DangNhap() {
       const { accessToken, refreshToken, role, id } = response.data;
 
       // Store tokens and user info
-      localStorage.setItem('jwtToken', accessToken);
+      localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('role', role);
       localStorage.setItem('userId', id);
 
       toast.success('Đăng nhập thành công!');
-      navigate('/');
+      navigate('/', { replace: true }); // Sử dụng replace để tránh quay lại trang đăng nhập
     } catch (error) {
       console.error('Login error:', error.response?.data || error.message);
       toast.error(error.response?.data || 'Đăng nhập thất bại. Vui lòng kiểm tra tên đăng nhập và mật khẩu!');
