@@ -27,9 +27,7 @@ function Sidebar({ onToggle, isCollapsed }) {
       children: [
         { title: 'Quản trị user', path: '/quan-tri-user', active: location.pathname === '/quan-tri-user' },
         { title: 'Quản trị khoa phòng', path: '/quan-tri-khoa-phong', active: location.pathname === '/quan-tri-khoa-phong' },
-        { title: 'Quản lý khoa phòng', path: '/quan-ly-khoa-phong', active: location.pathname === '/quan-ly-khoa-phong' },
-        { title: 'Cài đặt văn bản', path: '/cai-dat-van-ban', active: location.pathname === '/cai-dat-van-ban' },
-        { title: 'Cài đặt chấm công', path: '/cai-dat-cham-cong', active: location.pathname === '/cai-dat-cham-cong' },
+        { title: 'Cài đặt ký hiệu chấm công', path: '/cai-dat-cham-cong', active: location.pathname === '/cai-dat-cham-cong' },
       ],
     },
     {

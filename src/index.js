@@ -19,6 +19,8 @@ import './components/assets/style/variables.css'; // Cập nhật đường dẫ
 // 6. Bootstrap JS cho dropdown, modal...
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 
+import 'bootstrap/dist/css/bootstrap.min.css';
+
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

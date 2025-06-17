@@ -24,13 +24,14 @@ function DangNhap() {
     try {
       console.log('Attempting login with:', credentials);
       const response = await axiosInstance.post('/auth/dangnhap', credentials);
-      const { accessToken, refreshToken, role, id } = response.data;
+      const { accessToken, refreshToken, role, id, khoaPhongId } = response.data;
 
       // Store tokens and user info
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('role', role);
       localStorage.setItem('userId', id);
+      localStorage.setItem('khoaPhongId', khoaPhongId);
 
       toast.success('Đăng nhập thành công!');
       navigate('/', { replace: true }); // Sử dụng replace để tránh quay lại trang đăng nhập
