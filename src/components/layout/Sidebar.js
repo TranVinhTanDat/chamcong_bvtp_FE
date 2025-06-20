@@ -5,6 +5,8 @@ function Sidebar({ onToggle, isCollapsed }) {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const userRole = localStorage.getItem('role'); // Lấy role từ localStorage
+
   const menuItems = [
     {
       title: 'Trang chủ',
@@ -21,25 +23,26 @@ function Sidebar({ onToggle, isCollapsed }) {
         { title: 'Danh sách nhân sự', path: '/quan-ly-danh-sach-nhan-su', active: location.pathname === '/quan-ly-danh-sach-nhan-su' },
       ],
     },
-    {
-      title: 'Quản trị',
-      icon: 'ri-shield-user-line',
-      children: [
-        { title: 'Quản trị user', path: '/quan-tri-user', active: location.pathname === '/quan-tri-user' },
-        { title: 'Quản trị khoa phòng', path: '/quan-tri-khoa-phong', active: location.pathname === '/quan-tri-khoa-phong' },
-        { title: 'Cài đặt ký hiệu chấm công', path: '/cai-dat-cham-cong', active: location.pathname === '/cai-dat-cham-cong' },
-      ],
-    },
-    {
-      title: 'Báo cáo',
-      icon: 'ri-bar-chart-box-line',
-      children: [
-        { title: 'Báo cáo chấm công', path: '/bao-cao-cham-cong', active: location.pathname === '/bao-cao-cham-cong' },
-        { title: 'Báo cáo nhân sự', path: '/bao-cao-nhan-su', active: location.pathname === '/bao-cao-nhan-su' },
-      ],
-    },
+    ...(userRole === 'ADMIN' ? [ // Chỉ hiển thị "Quản trị" và "Báo cáo" nếu role là ADMIN
+      {
+        title: 'Quản trị',
+        icon: 'ri-shield-user-line',
+        children: [
+          { title: 'Quản trị user', path: '/quan-tri-user', active: location.pathname === '/quan-tri-user' },
+          { title: 'Quản trị khoa phòng', path: '/quan-tri-khoa-phong', active: location.pathname === '/quan-tri-khoa-phong' },
+          { title: 'Cài đặt ký hiệu chấm công', path: '/cai-dat-ky-hieu-cham-cong', active: location.pathname === '/cai-dat-ky-hieu-cham-cong' },
+          { title: 'Cài đặt ca làm việc', path: '/cai-dat-ca-lam-viec', active: location.pathname === '/cai-dat-ca-lam-viec' },
+        ],
+      },
+      {
+        title: 'Báo cáo',
+        icon: 'ri-bar-chart-box-line',
+        children: [
+          { title: 'Báo cáo chấm công', path: '/bao-cao-cham-cong', active: location.pathname === '/bao-cao-cham-cong' },
+        ],
+      },
+    ] : []),
   ];
-
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
@@ -57,12 +60,11 @@ function Sidebar({ onToggle, isCollapsed }) {
         position: 'fixed',
         left: 0,
         top: 0,
-        zIndex: 1000,
+        zIndex: 1030,
         transition: 'width 0.3s ease',
         overflowY: 'auto',
       }}
     >
-      {/* Header */}
       <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
         {!isCollapsed && (
           <div className="d-flex align-items-center">
@@ -75,7 +77,6 @@ function Sidebar({ onToggle, isCollapsed }) {
         </button>
       </div>
 
-      {/* Navigation Menu */}
       <nav className="mt-3">
         <ul className="nav flex-column">
           {menuItems.map((item, index) => (
@@ -88,7 +89,7 @@ function Sidebar({ onToggle, isCollapsed }) {
                     data-bs-toggle="dropdown"
                     style={{ color: '#6c757d' }}
                   >
-                    <i className={`${item.icon} me-2`} style={{ width: '20px' }}></i>
+                    <i className={item.icon} style={{ width: '20px' }}></i>
                     {!isCollapsed && (
                       <>
                         <span className="flex-grow-1">{item.title}</span>
@@ -100,9 +101,8 @@ function Sidebar({ onToggle, isCollapsed }) {
                     {item.children.map((child, childIndex) => (
                       <li key={childIndex}>
                         <Link
-                          className={`dropdown-item d-flex align-items-center py-2 ${
-                            child.active ? 'active bg-primary text-white' : ''
-                          }`}
+                          className={`dropdown-item d-flex align-items-center py-2 ${child.active ? 'active bg-primary text-white' : ''
+                            }`}
                           to={child.path}
                         >
                           <i className="ri-arrow-right-s-line me-2"></i>
@@ -114,22 +114,20 @@ function Sidebar({ onToggle, isCollapsed }) {
                 </div>
               ) : (
                 <Link
-                  className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none ${
-                    item.active ? 'active bg-primary text-white' : 'text-dark'
-                  }`}
+                  className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none ${item.active ? 'active bg-primary text-white' : 'text-dark'
+                    }`}
                   to={item.path}
                   style={{
                     borderRadius: item.active ? '0.375rem' : '0',
                     margin: item.active ? '0 0.5rem' : '0',
                   }}
                 >
-                  <i className={`${item.icon} me-2`} style={{ width: '20px' }}></i>
+                  <i className={item.icon} style={{ width: '20px' }}></i>
                   {!isCollapsed && <span>{item.title}</span>}
                 </Link>
               )}
             </li>
           ))}
-          {/* Thêm mục Đăng xuất */}
           <li className="nav-item mt-auto">
             <button
               className="nav-link d-flex align-items-center py-2 px-3 text-decoration-none text-danger"
@@ -143,7 +141,6 @@ function Sidebar({ onToggle, isCollapsed }) {
         </ul>
       </nav>
 
-      {/* Footer */}
       {!isCollapsed && (
         <div className="mt-auto p-3 border-top" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
           <div className="d-flex align-items-center">

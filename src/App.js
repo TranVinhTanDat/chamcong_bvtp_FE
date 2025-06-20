@@ -7,6 +7,12 @@ import DangNhap from './components/pages/DangNhap';
 import ChamCong from './components/pages/ChamCong';
 import QuanLyBangChamCong from './components/pages/QuanLyBangChamCong';
 import QuanLyDanhSachNhanSu from './components/pages/QuanLyDanhSachNhanSu';
+import QuanTriUser from './components/pages/QuanTriUser';
+import QuanTriKhoaPhong from './components/pages/QuanTriKhoaPhong'
+import CaiDatKyHieuChamCong from './components/pages/CaiDatKyHieuChamCong';
+import CaiDatCaLamViec from './components/pages/CaiDatCaLamViec';
+
+
 import './components/assets/style/variables.css';
 import { ToastContainer } from 'react-toastify';
 import './App.css';
@@ -53,6 +59,10 @@ function App() {
             <Route path="/cham-cong" element={isAuthenticated ? <ChamCong /> : <Navigate to="/dang-nhap" replace />} />
             <Route path="/quan-ly-bang-cham-cong" element={isAuthenticated ? <QuanLyBangChamCong /> : <Navigate to="/dang-nhap" replace />} />
             <Route path="/quan-ly-danh-sach-nhan-su" element={isAuthenticated ? <QuanLyDanhSachNhanSu /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/quan-tri-user" element={isAuthenticated ? <QuanTriUser /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/quan-tri-khoa-phong" element={isAuthenticated ? <QuanTriKhoaPhong /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/cai-dat-ky-hieu-cham-cong" element={isAuthenticated ? <CaiDatKyHieuChamCong /> : <Navigate to="/dang-nhap" replace />} />
+            <Route path="/cai-dat-ca-lam-viec" element={isAuthenticated ? <CaiDatCaLamViec /> : <Navigate to="/dang-nhap" replace />} />
           </Routes>
         </div>
       </div>

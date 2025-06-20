@@ -15,10 +15,16 @@ function QuanLyBangChamCong() {
   const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statistics, setStatistics] = useState({});
-  const [khoaPhongs, setKhoaPhongs] = useState([]); // Thêm state cho khoa phòng
-  const [selectedKhoaPhongId, setSelectedKhoaPhongId] = useState(null); // Thêm state cho khoa phòng được chọn
+  const [khoaPhongs, setKhoaPhongs] = useState([]);
+  const [selectedKhoaPhongId, setSelectedKhoaPhongId] = useState(
+    userRole === 'ADMIN' ? Number(userKhoaPhongId) : null
+  );
+  const [isInitialized, setIsInitialized] = useState(false); // Thêm flag để track initialization
 
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+  const [summaryData, setSummaryData] = useState([]);
+  const [showSummary, setShowSummary] = useState(false); // Thêm dòng này
+
 
   // Tính toán thống kê
   const calculateStatistics = useCallback(() => {
@@ -53,6 +59,58 @@ function QuanLyBangChamCong() {
     setStatistics(stats);
   }, [nhanViens, chamCongData]);
 
+
+  // Tính toán dữ liệu tổng hợp cho từng nhân viên
+  const calculateSummaryData = useCallback(() => {
+    const summary = filteredEmployees.map(nv => {
+      const employeeData = chamCongData[nv.id] || {};
+      let workDays = 0;
+      let absentDays = 0;
+      let lateCount = 0;
+      let overtimeCount = 0;
+      let specialLeave = 0;
+
+      // Đếm các loại ngày
+      for (let day = 1; day <= daysInMonth; day++) {
+        const symbol = employeeData[day] || '-';
+
+        if (['x', 'X'].includes(symbol)) {
+          workDays++;
+        } else if (['VT', 'RT'].includes(symbol)) {
+          workDays++;
+          lateCount++;
+        } else if (['S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
+          workDays++;
+          if (['T12', 'T16'].includes(symbol)) {
+            overtimeCount++;
+          }
+        } else if (['PN', 'PC', 'PT', 'DL', 'H', 'Hn', 'Hct'].includes(symbol)) {
+          absentDays++;
+          specialLeave++;
+        } else if (['N', 'No', 'Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'NB'].includes(symbol)) {
+          absentDays++;
+        }
+      }
+
+      const totalDays = workDays + absentDays;
+      const attendanceRate = totalDays > 0 ? ((workDays / totalDays) * 100).toFixed(1) : 0;
+
+      return {
+        ...nv,
+        workDays,
+        absentDays,
+        lateCount,
+        overtimeCount,
+        specialLeave,
+        totalDays,
+        attendanceRate,
+        note: absentDays > 3 ? `Nghỉ nhiều: ${absentDays} ngày` : ''
+      };
+    });
+
+    return summary;
+  }, [filteredEmployees, chamCongData, daysInMonth]);
+
   // Lấy danh sách khoa phòng
   const fetchKhoaPhongs = useCallback(async () => {
     if (userRole === 'ADMIN' || userRole === 'NGUOITONGHOP') {
@@ -66,8 +124,7 @@ function QuanLyBangChamCong() {
   }, [userRole]);
 
   // Lấy danh sách nhân viên, dữ liệu chấm công và ký hiệu chấm công
-  const fetchData = useCallback(async () => {
-    // Sử dụng selectedKhoaPhongId thay vì userKhoaPhongId
+  const fetchData = useCallback(async (showNoDataToast = true) => {
     const khoaPhongIdToUse = selectedKhoaPhongId || userKhoaPhongId;
 
     if (!khoaPhongIdToUse && userRole !== 'ADMIN') {
@@ -86,10 +143,9 @@ function QuanLyBangChamCong() {
       setNhanViens(nhanVienData);
       setFilteredEmployees(nhanVienData);
 
-      if (nhanVienData.length === 0) {
+      if (nhanVienData.length === 0 && showNoDataToast) {
         toast.warn('Không có nhân viên nào trong khoa phòng này.');
       }
-
       // Lấy dữ liệu chấm công
       const chamCongResponse = await axiosInstance.get('/chamcong/lichsu', {
         params: {
@@ -139,32 +195,53 @@ function QuanLyBangChamCong() {
         }
       });
 
-      setChamCongData(chamCongMap);
-      if (Object.keys(chamCongMap).length === 0) {
+      // Lọc dữ liệu chấm công chỉ cho nhân viên có trong nhanViens
+      const filteredChamCongData = Object.keys(chamCongMap).reduce((acc, nhanVienId) => {
+        if (nhanVienData.some(nv => nv.id === parseInt(nhanVienId))) {
+          acc[nhanVienId] = chamCongMap[nhanVienId];
+        }
+        return acc;
+      }, {});
+      setChamCongData(filteredChamCongData);
+
+      // Chỉ hiển thị toast khi showNoDataToast = true và không có dữ liệu
+      if (showNoDataToast && Object.keys(filteredChamCongData).length === 0 && nhanVienData.length > 0) {
         toast.warn('Không có dữ liệu chấm công cho tháng này.');
       }
 
-      // Lấy danh sách ký hiệu chấm công
-      const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
-      const activeKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
-      setKyHieuChamCongs(activeKyHieuChamCongs);
+      // Lấy danh sách ký hiệu chấm công chỉ lần đầu hoặc khi cần thiết
+      if (kyHieuChamCongs.length === 0) {
+        const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
+        const activeKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
+        setKyHieuChamCongs(activeKyHieuChamCongs);
+      }
     } catch (error) {
       toast.error(`Lỗi khi tải dữ liệu: ${error.response?.data?.error || error.message || 'Kiểm tra API'}`);
       console.error('Lỗi chi tiết:', error.response?.data || error);
     } finally {
       setLoading(false);
     }
-  }, [userKhoaPhongId, userRole, selectedKhoaPhongId, selectedMonth, selectedYear, daysInMonth]);
+  }, [userKhoaPhongId, userRole, selectedKhoaPhongId, selectedMonth, selectedYear, daysInMonth, kyHieuChamCongs.length]);
 
   // Khởi tạo dữ liệu ban đầu
   useEffect(() => {
-    fetchKhoaPhongs(); // Lấy danh sách khoa phòng
-  }, [userRole, userKhoaPhongId, fetchKhoaPhongs]);
+    const initializeData = async () => {
+      if (!isInitialized) {
+        await fetchKhoaPhongs();
+        await fetchData(false); // Không hiển thị toast lần đầu
+        setIsInitialized(true);
+      }
+    };
 
-  // Tải dữ liệu khi thay đổi khoa phòng, tháng hoặc năm
+    initializeData();
+  }, [isInitialized, fetchKhoaPhongs, fetchData]);
+
+  // Tải dữ liệu khi thay đổi khoa phòng, tháng hoặc năm (chỉ sau khi đã initialize)
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (isInitialized) {
+      fetchData(true); // Hiển thị toast khi user thay đổi filter
+    }
+  }, [selectedKhoaPhongId, selectedMonth, selectedYear, fetchData, isInitialized]);
 
   // Tính toán thống kê khi dữ liệu thay đổi
   useEffect(() => {
@@ -224,90 +301,202 @@ function QuanLyBangChamCong() {
   };
 
   // Xuất file Excel
+  // Xuất file Excel
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
+    const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
+      nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'TC-HCQT';
 
-    // Tạo dữ liệu cho worksheet
-    const wsData = [];
+    if (showSummary) {
+      // Xuất dữ liệu tổng hợp
+      const summaryData = calculateSummaryData();
+      const wsData = [];
 
-    // Header chính
-    wsData.push([`BẢNG CHẤM CÔNG THÁNG ${selectedMonth}/${selectedYear}`]);
-    const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong || nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'N/A';
-    wsData.push([`Khoa phòng: ${khoaPhongName}`]);
-    wsData.push([`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`]);
-    wsData.push([]);
+      // Header chính - 3 dòng đầu
+      wsData.push(['BỆNH VIỆN QUẬN TÂN PHÚ', '', '', '', '', '', '', '', '', '', '', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM']);
+      wsData.push(['PHÒNG ' + khoaPhongName, '', '', '', '', '', '', '', '', '', '', 'Độc lập - Tự do - Hạnh phúc']);
+      wsData.push([]);
+      wsData.push([`BẢNG TỔNG HỢP CHẤM CÔNG`]);
+      wsData.push([`THÁNG ${selectedMonth} NĂM ${selectedYear}`]);
+      wsData.push([]);
 
-    // Header bảng
-    const headerRow = ['STT', 'Mã NV', 'Họ và Tên', 'Chức Vụ'];
-    for (let i = 1; i <= daysInMonth; i++) {
-      headerRow.push(i.toString());
-    }
-    headerRow.push('Tổng làm việc', 'Tổng nghỉ', 'Tỷ lệ (%)', 'Ghi chú');
-    wsData.push(headerRow);
+      // Bảng chấm công chi tiết
+      const headerRow1 = ['', 'Họ Tên', 'Ngày tháng năm sinh', 'Khoa/phòng'];
+      const headerRow2 = ['', '', '', '', 'NGÀY TRONG THÁNG'];
 
-    // Dữ liệu nhân viên
-    filteredEmployees.forEach((nv, index) => {
-      const employeeData = chamCongData[nv.id] || {};
-      let workDays = 0;
-      let absentDays = 0;
-
-      const row = [index + 1, nv.maNV || 'N/A', nv.hoTen || 'N/A', nv.chucVu?.tenChucVu || 'N/A'];
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const symbol = employeeData[day] || '-';
-        row.push(symbol);
-
-        if (['x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
-          workDays++;
-        } else if (symbol !== '-') {
-          absentDays++;
-        }
+      // Thêm các ngày trong tháng
+      for (let i = 1; i <= daysInMonth; i++) {
+        headerRow1.push('');
+        headerRow2.push(i.toString());
       }
 
-      const total = workDays + absentDays;
-      const rate = total > 0 ? ((workDays / total) * 100).toFixed(1) : '0';
-      row.push(workDays, absentDays, rate + '%', '');
-      wsData.push(row);
-    });
+      // Thêm các cột tổng hợp
+      headerRow1.push('Số ngày làm việc (A)', 'Những ngày nghỉ không lương (C)', 'Phép', 'BHXH (D)', 'Học, Hội nghỉ, Tập huấn, Hợp (E)', 'Khác (F)', 'Tổng số ngày làm (A+B)', 'Tổng số ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú');
+      headerRow2.push('', '', '', '', '', '', '', '', '', '');
 
-    wsData.push([]);
-    wsData.push(['CHÚ THÍCH KÝ HIỆU:']);
-    const legendRow = [];
-    kyHieuChamCongs.forEach(kh => {
-      legendRow.push(`${kh.maKyHieu}: ${kh.tenKyHieu}`);
-    });
-    wsData.push(legendRow);
-    wsData.push(['-: Không có dữ liệu']);
+      wsData.push(headerRow1);
+      wsData.push(headerRow2);
 
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+      // Dòng phụ đề cho các cột
+      const subHeaderRow = ['STT', '', '', ''];
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(selectedYear, selectedMonth - 1, i);
+        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+        subHeaderRow.push(dayName);
+      }
+      subHeaderRow.push('(B)', '', '', '', '', '', '', '', '', '');
+      wsData.push(subHeaderRow);
 
-    const colWidths = [
-      { wch: 5 },
-      { wch: 10 },
-      { wch: 25 },
-      { wch: 15 },
-    ];
-    for (let i = 0; i < daysInMonth; i++) {
-      colWidths.push({ wch: 4 });
+      // Dữ liệu nhân viên
+      summaryData.forEach((nv, index) => {
+        const employeeData = chamCongData[nv.id] || {};
+        const row = [
+          index + 1,
+          nv.hoTen || 'N/A',
+          nv.ngayThangNamSinh || 'N/A',
+          nv.khoaPhong?.tenKhoaPhong || khoaPhongName
+        ];
+
+        // Thêm dữ liệu chấm công cho từng ngày
+        for (let day = 1; day <= daysInMonth; day++) {
+          const symbol = employeeData[day] || '';
+          row.push(symbol);
+        }
+
+        // Thêm các cột tổng hợp
+        row.push(
+          nv.workDays,           // Số ngày làm việc
+          nv.absentDays - nv.specialLeave, // Nghỉ không lương
+          nv.specialLeave,       // Phép
+          0,                     // BHXH
+          0,                     // Học hội nghỉ
+          nv.lateCount,          // Khác
+          nv.workDays,           // Tổng ngày làm
+          nv.absentDays,         // Tổng ngày nghỉ
+          nv.totalDays,          // Tổng cộng
+          nv.note                // Ghi chú
+        );
+
+        wsData.push(row);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Thiết lập độ rộng cột
+      const colWidths = [
+        { wch: 5 },   // STT
+        { wch: 20 },  // Họ tên
+        { wch: 15 },  // Ngày sinh
+        { wch: 15 },  // Khoa phòng
+      ];
+
+      // Độ rộng cho các ngày
+      for (let i = 0; i < daysInMonth; i++) {
+        colWidths.push({ wch: 4 });
+      }
+
+      // Độ rộng cho các cột tổng hợp
+      colWidths.push(
+        { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 },
+        { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 12 },
+        { wch: 10 }, { wch: 20 }
+      );
+
+      ws['!cols'] = colWidths;
+
+      // Merge cells cho header
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },   // BỆNH VIỆN QUẬN TÂN PHÚ
+        { s: { r: 0, c: 11 }, e: { r: 0, c: daysInMonth + 13 } }, // CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },   // PHÒNG
+        { s: { r: 1, c: 11 }, e: { r: 1, c: daysInMonth + 13 } }, // Độc lập - Tự do - Hạnh phúc
+        { s: { r: 3, c: 0 }, e: { r: 3, c: daysInMonth + 13 } }, // BẢNG TỔNG HỢP CHẤM CÔNG
+        { s: { r: 4, c: 0 }, e: { r: 4, c: daysInMonth + 13 } }, // THÁNG X NĂM YYYY
+        { s: { r: 6, c: 4 }, e: { r: 6, c: 3 + daysInMonth } },  // NGÀY TRONG THÁNG
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Tổng Hợp Chấm Công');
+
+    } else {
+      // Xuất dữ liệu thông thường (code cũ)
+      const wsData = [];
+      wsData.push([`BẢNG CHẤM CÔNG THÁNG ${selectedMonth}/${selectedYear}`]);
+      const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
+        nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'N/A';
+      wsData.push([`Khoa phòng: ${khoaPhongName}`]);
+      wsData.push([`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`]);
+      wsData.push([]);
+
+      const headerRow = ['STT', 'Mã NV', 'Họ và Tên', 'Khoa Phòng'];
+      for (let i = 1; i <= daysInMonth; i++) {
+        headerRow.push(i.toString());
+      }
+      headerRow.push('Tổng làm việc', 'Tổng nghỉ', 'Tỷ lệ (%)', 'Ghi chú');
+      wsData.push(headerRow);
+
+      filteredEmployees.forEach((nv, index) => {
+        const employeeData = chamCongData[nv.id] || {};
+        let workDays = 0;
+        let absentDays = 0;
+
+        const row = [index + 1, nv.maNV || 'N/A', nv.hoTen || 'N/A', nv.khoaPhong?.tenKhoaPhong || 'N/A'];
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const symbol = employeeData[day] || '-';
+          row.push(symbol);
+
+          if (['x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
+            workDays++;
+          } else if (symbol !== '-') {
+            absentDays++;
+          }
+        }
+
+        const total = workDays + absentDays;
+        const rate = total > 0 ? ((workDays / total) * 100).toFixed(1) : '0';
+        row.push(workDays, absentDays, rate + '%', '');
+        wsData.push(row);
+      });
+
+      wsData.push([]);
+      wsData.push(['CHÚ THÍCH KÝ HIỆU:']);
+      const legendRow = [];
+      kyHieuChamCongs.forEach(kh => {
+        legendRow.push(`${kh.maKyHieu}: ${kh.tenKyHieu}`);
+      });
+      wsData.push(legendRow);
+      wsData.push(['-: Không có dữ liệu']);
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      const colWidths = [{ wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }];
+      for (let i = 0; i < daysInMonth; i++) {
+        colWidths.push({ wch: 4 });
+      }
+      colWidths.push({ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 });
+      ws['!cols'] = colWidths;
+
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: daysInMonth + 7 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: daysInMonth + 7 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: daysInMonth + 7 } },
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Chấm Công');
     }
-    colWidths.push({ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 });
-    ws['!cols'] = colWidths;
 
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: daysInMonth + 7 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: daysInMonth + 7 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: daysInMonth + 7 } },
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Chấm Công');
-    const fileName = `ChamCong_Thang${selectedMonth.toString().padStart(2, '0')}_${selectedYear}_${new Date().getTime()}.xlsx`;
+    const fileName = `${showSummary ? 'TongHop_' : ''}ChamCong_Thang${selectedMonth.toString().padStart(2, '0')}_${selectedYear}_${new Date().getTime()}.xlsx`;
     XLSX.writeFile(wb, fileName);
     toast.success('Xuất file Excel thành công!');
   };
-
   const isWeekend = (day) => {
     const date = new Date(selectedYear, selectedMonth - 1, day);
     return date.getDay() === 0 || date.getDay() === 6;
+  };
+
+  // Hàm refresh với toast
+  const handleRefresh = () => {
+    fetchData(true);
   };
 
   return (
@@ -321,9 +510,17 @@ function QuanLyBangChamCong() {
           <p className="text-muted mb-0">Theo dõi và quản lý chấm công nhân viên</p>
         </div>
         <div className="d-flex gap-2">
-          <button className="btn btn-outline-primary" onClick={fetchData} disabled={loading}>
+          <button className="btn btn-outline-primary" onClick={handleRefresh} disabled={loading}>
             <i className="ri-refresh-line me-1"></i>
             {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+          <button
+            className={`btn ${showSummary ? 'btn-info' : 'btn-outline-info'}`}
+            onClick={() => setShowSummary(!showSummary)}
+            disabled={loading || filteredEmployees.length === 0}
+          >
+            <i className="ri-table-line me-1"></i>
+            {showSummary ? 'Xem chi tiết' : 'Xem tổng hợp'}
           </button>
           <button
             className="btn btn-success"
@@ -349,7 +546,7 @@ function QuanLyBangChamCong() {
                   value={selectedKhoaPhongId || ''}
                   onChange={(e) => setSelectedKhoaPhongId(e.target.value ? Number(e.target.value) : null)}
                 >
-                  <option value="">Tất cả khoa phòng</option>
+                  {userRole === 'NGUOITONGHOP' && <option value="">Tất cả khoa phòng</option>}
                   {khoaPhongs.map(khoaPhong => (
                     <option key={khoaPhong.id} value={khoaPhong.id}>
                       {khoaPhong.tenKhoaPhong}
@@ -414,72 +611,212 @@ function QuanLyBangChamCong() {
             </div>
           ) : filteredEmployees.length > 0 ? (
             <div className="table-responsive" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-              <table className="table table-hover mb-0">
-                <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white' }}>
-                  <tr>
-                    <th className="text-center py-3" style={{ minWidth: '60px', fontSize: '14px' }}>
-                      STT
-                    </th>
-                    <th className="text-center py-3" style={{ minWidth: '100px', fontSize: '14px' }}>
-                      Mã NV
-                    </th>
-                    <th className="py-3" style={{ minWidth: '200px', fontSize: '14px' }}>
-                      Họ và Tên
-                    </th>
-                    <th className="text-center py-3" style={{ minWidth: '120px', fontSize: '14px' }}>
-                      Chức Vụ
-                    </th>
-                    {Array.from({ length: daysInMonth }, (_, i) => (
-                      <th
-                        key={i + 1}
-                        className="text-center py-3"
-                        style={{
-                          minWidth: '35px',
-                          fontSize: '12px',
-                          backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
-                          color: 'white',
-                        }}
-                      >
-                        {i + 1}
-                      </th>
+              {!showSummary ? (
+                // Bảng chấm công chi tiết
+                <table className="table table-hover mb-0">
+                  <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
+                    <tr>
+                      <th className="text-center py-3" style={{ minWidth: '60px', fontSize: '14px' }}>STT</th>
+                      <th className="text-center py-3" style={{ minWidth: '100px', fontSize: '14px' }}>Mã NV</th>
+                      <th className="py-3" style={{ minWidth: '200px', fontSize: '14px' }}>Họ và Tên</th>
+                      <th className="text-center py-3" style={{ minWidth: '120px', fontSize: '14px' }}>Khoa Phòng</th>
+                      {Array.from({ length: daysInMonth }, (_, i) => (
+                        <th
+                          key={i + 1}
+                          className="text-center py-3"
+                          style={{
+                            minWidth: '35px',
+                            fontSize: '12px',
+                            backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
+                            color: 'white',
+                          }}
+                        >
+                          {i + 1}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEmployees.map((nv, index) => (
+                      <tr key={nv.id} className="border-bottom">
+                        <td className="text-center align-middle py-3 fw-semibold">{index + 1}</td>
+                        <td className="text-center align-middle py-3">
+                          <span className="badge bg-light text-dark">{nv.maNV || 'N/A'}</span>
+                        </td>
+                        <td className="align-middle py-3 fw-semibold">{nv.hoTen}</td>
+                        <td className="text-center align-middle py-3">
+                          <small className="text-muted">{nv.khoaPhong?.tenKhoaPhong || 'N/A'}</small>
+                        </td>
+                        {Array.from({ length: daysInMonth }, (_, day) => {
+                          const symbol = chamCongData[nv.id]?.[day + 1] || '-';
+                          const isWeekendDay = isWeekend(day + 1);
+                          return (
+                            <td
+                              key={day + 1}
+                              className="text-center align-middle p-1"
+                              style={{
+                                ...getCellStyle(symbol),
+                                backgroundColor: isWeekendDay && symbol === '-' ? '#ffe6e6' : getCellStyle(symbol).backgroundColor,
+                                minWidth: '35px',
+                                minHeight: '35px',
+                              }}
+                            >
+                              <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '30px' }}>
+                                {symbol}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEmployees.map((nv, index) => (
-                    <tr key={nv.id} className="border-bottom">
-                      <td className="text-center align-middle py-3 fw-semibold">{index + 1}</td>
-                      <td className="text-center align-middle py-3">
-                        <span className="badge bg-light text-dark">{nv.maNV || 'N/A'}</span>
-                      </td>
-                      <td className="align-middle py-3 fw-semibold">{nv.hoTen}</td>
-                      <td className="text-center align-middle py-3">
-                        <small className="text-muted">{nv.chucVu?.tenChucVu || 'N/A'}</small>
-                      </td>
-                      {Array.from({ length: daysInMonth }, (_, day) => {
-                        const symbol = chamCongData[nv.id]?.[day + 1] || '-';
-                        const isWeekendDay = isWeekend(day + 1);
+                  </tbody>
+                </table>
+              ) : (
+                // Bảng tổng hợp
+                <table className="table table-hover mb-0">
+                  <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
+                    <tr>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '12px' }}>STT</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '180px', fontSize: '12px' }}>Họ và Tên</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '120px', fontSize: '12px' }}>Ngày tháng năm sinh</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Khoa/phòng</th>
+                      <th colSpan={daysInMonth} className="text-center py-2" style={{ fontSize: '12px', color: '#ff0000' }}>NGÀY TRONG THÁNG</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ffa500' }}>Số ngày làm việc (A)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ff6b6b' }}>Những ngày nghỉ không lương (C)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '10px', backgroundColor: '#51cf66' }}>Phép</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '10px', backgroundColor: '#74c0fc' }}>BHXH (D)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ffd43b' }}>Học, Hội nghỉ, Tập huấn, Hợp (E)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '10px' }}>Khác (F)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#69db7c' }}>Tổng số ngày làm (A+B)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ff8787' }}>Tổng số ngày nghỉ (C+D+E+F)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '70px', fontSize: '10px', backgroundColor: '#ffd93d' }}>Tổng cộng</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '150px', fontSize: '10px' }}>Ghi chú</th>
+                    </tr>
+                    <tr>
+                      {Array.from({ length: daysInMonth }, (_, i) => (
+                        <th key={i + 1} className="text-center py-2" style={{
+                          minWidth: '30px',
+                          fontSize: '11px',
+                          backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
+                          color: 'white'
+                        }}>
+                          {i + 1}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr>
+                      {Array.from({ length: daysInMonth }, (_, i) => {
+                        const date = new Date(selectedYear, selectedMonth - 1, i + 1);
+                        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
                         return (
-                          <td
-                            key={day + 1}
-                            className="text-center align-middle p-1"
-                            style={{
-                              ...getCellStyle(symbol),
-                              backgroundColor: isWeekendDay && symbol === '-' ? '#ffe6e6' : getCellStyle(symbol).backgroundColor,
-                              minWidth: '35px',
-                              minHeight: '35px',
-                            }}
-                          >
-                            <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '30px' }}>
-                              {symbol}
-                            </div>
-                          </td>
+                          <th key={i + 1} className="text-center py-2" style={{
+                            minWidth: '30px',
+                            fontSize: '10px',
+                            backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
+                            color: 'white'
+                          }}>
+                            {dayName}
+                          </th>
                         );
                       })}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const summaryData = filteredEmployees.map(nv => {
+                        const employeeData = chamCongData[nv.id] || {};
+                        let workDays = 0;
+                        let absentDays = 0;
+                        let specialLeave = 0;
+                        let lateCount = 0;
+
+                        for (let day = 1; day <= daysInMonth; day++) {
+                          const symbol = employeeData[day] || '-';
+                          if (['x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
+                            workDays++;
+                          } else if (symbol !== '-' && !['P', 'PN'].includes(symbol)) {
+                            absentDays++;
+                          } else if (['P', 'PN'].includes(symbol)) {
+                            specialLeave++;
+                          }
+                          if (symbol === 'N1') lateCount++;
+                        }
+
+                        const totalDays = workDays + absentDays;
+                        return {
+                          id: nv.id,
+                          hoTen: nv.hoTen,
+                          ngayThangNamSinh: nv.ngayThangNamSinh || 'N/A',
+                          khoaPhong: nv.khoaPhong,
+                          workDays,
+                          absentDays,
+                          specialLeave,
+                          lateCount,
+                          totalDays,
+                          note: ''
+                        };
+                      });
+                      return summaryData.map((nv, index) => (
+                        <tr key={nv.id} className="border-bottom">
+                          <td className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>{index + 1}</td>
+                          <td className="align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>{nv.hoTen}</td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
+                            {nv.ngayThangNamSinh}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
+                            {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
+                          </td>
+                          {Array.from({ length: daysInMonth }, (_, day) => {
+                            const symbol = chamCongData[nv.id]?.[day + 1] || '';
+                            const isWeekendDay = isWeekend(day + 1);
+                            return (
+                              <td
+                                key={day + 1}
+                                className="text-center align-middle p-1"
+                                style={{
+                                  ...getCellStyle(symbol || '-'),
+                                  backgroundColor: isWeekendDay && !symbol ? '#ffe6e6' : getCellStyle(symbol || '-').backgroundColor,
+                                  minWidth: '30px',
+                                  fontSize: '10px',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {symbol}
+                              </td>
+                            );
+                          })}
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3cd' }}>
+                            {nv.workDays}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f8d7da' }}>
+                            {nv.absentDays - nv.specialLeave}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>
+                            {nv.specialLeave}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>-</td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>-</td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>
+                            {nv.lateCount}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#d4edda' }}>
+                            {nv.workDays}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f8d7da' }}>
+                            {nv.absentDays}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3cd' }}>
+                            {nv.totalDays}
+                          </td>
+                          <td className="align-middle py-2" style={{ fontSize: '11px' }}>
+                            {nv.note}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              )}
             </div>
           ) : (
             <div className="text-center py-5">
@@ -549,47 +886,6 @@ function QuanLyBangChamCong() {
                       <small className="text-muted">{kyHieu.tenKyHieu}</small>
                     </div>
                   ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-lg-4">
-          <div className="row h-100">
-            <div className="col-6 mb-2">
-              <div className="card border-0 bg-primary text-white h-100">
-                <div className="card-body text-center">
-                  <i className="ri-group-line fs-2 mb-2"></i>
-                  <div className="fw-bold fs-4">{statistics.totalEmployees}</div>
-                  <small>Tổng NV</small>
-                </div>
-              </div>
-            </div>
-            <div className="col-6 mb-2">
-              <div className="card border-0 bg-success text-white h-100">
-                <div className="card-body text-center">
-                  <i className="ri-check-line fs-2 mb-2"></i>
-                  <div className="fw-bold fs-4">{statistics.employeesWithData}</div>
-                  <small>Có dữ liệu</small>
-                </div>
-              </div>
-            </div>
-            <div className="col-6">
-              <div className="card border-0 bg-info text-white h-100">
-                <div className="card-body text-center">
-                  <i className="ri-time-line fs-2 mb-2"></i>
-                  <div className="fw-bold fs-4">{statistics.totalWorkDays}</div>
-                  <small>Ngày làm việc</small>
-                </div>
-              </div>
-            </div>
-            <div className="col-6">
-              <div className="card border-0 bg-warning text-white h-100">
-                <div className="card-body text-center">
-                  <i className="ri-percent-line fs-2 mb-2"></i>
-                  <div className="fw-bold fs-4">{statistics.attendanceRate}%</div>
-                  <small>Tỷ lệ đi làm</small>
                 </div>
               </div>
             </div>

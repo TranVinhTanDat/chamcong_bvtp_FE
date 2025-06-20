@@ -78,26 +78,7 @@ function Home() {
             </div>
           </div>
         </div>
-        <div className="col-xl-3 col-md-6 mb-3">
-          <div className="card border-0 shadow-sm h-100">
-            <div className="card-body">
-              <div className="d-flex align-items-center">
-                <div className="flex-grow-1">
-                  <h6 className="card-title text-muted mb-1">Đi trễ</h6>
-                  <h3 className="mb-0 text-warning">8</h3>
-                </div>
-                <div className="bg-warning bg-opacity-10 p-3 rounded">
-                  <i className="ri-time-line text-warning fs-4"></i>
-                </div>
-              </div>
-              <div className="mt-2">
-                <small className="text-danger">
-                  <i className="ri-arrow-down-line"></i> -1.2% so với hôm qua
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
+
         <div className="col-xl-3 col-md-6 mb-3">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body">
@@ -136,15 +117,6 @@ function Home() {
                   <div className="flex-grow-1">
                     <h6 className="mb-1">Nguyễn Văn A đã chấm công vào</h6>
                     <small className="text-muted">08:15 AM - 2 phút trước</small>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center mb-3">
-                  <div className="bg-warning rounded-circle p-2 me-3">
-                    <i className="ri-time-line text-white"></i>
-                  </div>
-                  <div className="flex-grow-1">
-                    <h6 className="mb-1">Trần Thị B đi trễ 15 phút</h6>
-                    <small className="text-muted">08:30 AM - 5 phút trước</small>
                   </div>
                 </div>
                 <div className="d-flex align-items-center mb-3">
@@ -192,13 +164,6 @@ function Home() {
                 >
                   <i className="ri-user-add-line me-2"></i>
                   Thêm nhân viên
-                </button>
-                <button
-                  className="btn btn-outline-secondary d-flex align-items-center justify-content-center"
-                  onClick={() => handleQuickAction('xuat-bao-cao')}
-                >
-                  <i className="ri-file-excel-line me-2"></i>
-                  Xuất báo cáo
                 </button>
                 <button
                   className="btn btn-outline-info d-flex align-items-center justify-content-center"

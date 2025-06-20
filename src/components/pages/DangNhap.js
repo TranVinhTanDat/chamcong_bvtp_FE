@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import { toast } from 'react-toastify';
-import logoTanPhu from '../../components/assets/images/logo tan phu_hinh.png'; // Fix path if needed
+import logoTanPhu from '../../components/assets/images/logo tan phu_hinh.png';
 
 function DangNhap() {
   const [credentials, setCredentials] = useState({ tenDangNhap: '', matKhau: '' });
+  const [isLoading, setIsLoading] = useState(false); // Thêm trạng thái loading
   const navigate = useNavigate();
 
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
     if (accessToken) {
-      navigate('/', { replace: true }); // Chuyển hướng ngay nếu đã đăng nhập
+      navigate('/', { replace: true });
     }
   }, [navigate]);
 
@@ -21,23 +22,32 @@ function DangNhap() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
       console.log('Attempting login with:', credentials);
       const response = await axiosInstance.post('/auth/dangnhap', credentials);
+      console.log('Login response:', response.data); // Log phản hồi
       const { accessToken, refreshToken, role, id, khoaPhongId } = response.data;
 
-      // Store tokens and user info
+      // Lưu vào localStorage
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('role', role);
       localStorage.setItem('userId', id);
       localStorage.setItem('khoaPhongId', khoaPhongId);
+      console.log('Token saved:', { accessToken, role, khoaPhongId });
 
       toast.success('Đăng nhập thành công!');
-      navigate('/', { replace: true }); // Sử dụng replace để tránh quay lại trang đăng nhập
+      navigate('/', { replace: true });
     } catch (error) {
-      console.error('Login error:', error.response?.data || error.message);
-      toast.error(error.response?.data || 'Đăng nhập thất bại. Vui lòng kiểm tra tên đăng nhập và mật khẩu!');
+      console.error('Login error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+      toast.error(error.response?.data?.error || 'Đăng nhập thất bại. Vui lòng kiểm tra tên đăng nhập và mật khẩu!');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -61,6 +71,7 @@ function DangNhap() {
               onChange={handleChange}
               required
               placeholder="Nhập tên đăng nhập"
+              disabled={isLoading}
             />
           </div>
           <div className="mb-4">
@@ -74,10 +85,11 @@ function DangNhap() {
               onChange={handleChange}
               required
               placeholder="Nhập mật khẩu"
+              disabled={isLoading}
             />
           </div>
-          <button type="submit" className="btn btn-primary btn-lg w-100 mb-3" style={{ backgroundColor: '#0d6efd', borderColor: '#0d6efd' }}>
-            Đăng nhập
+          <button type="submit" className="btn btn-primary btn-lg w-100 mb-3" disabled={isLoading}>
+            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
           <div className="text-center">
             <a href="#" className="text-decoration-none text-muted small">Quên mật khẩu?</a>
