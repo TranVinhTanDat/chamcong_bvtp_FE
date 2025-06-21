@@ -25,6 +25,11 @@ function QuanLyBangChamCong() {
   const [summaryData, setSummaryData] = useState([]);
   const [showSummary, setShowSummary] = useState(false); // Thêm dòng này
 
+  const getKyHieuDescription = (maKyHieu, kyHieuChamCongs) => {
+    const kyHieu = kyHieuChamCongs.find(kh => kh.maKyHieu === maKyHieu);
+    return kyHieu ? kyHieu.tenKyHieu : maKyHieu || 'Không xác định';
+  };
+
 
   // Tính toán thống kê
   const calculateStatistics = useCallback(() => {
@@ -64,52 +69,98 @@ function QuanLyBangChamCong() {
   const calculateSummaryData = useCallback(() => {
     const summary = filteredEmployees.map(nv => {
       const employeeData = chamCongData[nv.id] || {};
-      let workDays = 0;
-      let absentDays = 0;
-      let lateCount = 0;
-      let overtimeCount = 0;
-      let specialLeave = 0;
+      let workDaysA = 0;
+      let absentDaysC = 0;
+      let phepDays = 0;
+      let bhxhDays = 0;
+      let hocHoiDays = 0;
+      let khacDays = 0;
+      let absentNotes = []; // Lưu trữ thông tin các ngày nghỉ
 
-      // Đếm các loại ngày
+      // Đếm các loại ngày và thu thập ghi chú
       for (let day = 1; day <= daysInMonth; day++) {
         const symbol = employeeData[day] || '-';
 
-        if (['x', 'X'].includes(symbol)) {
-          workDays++;
-        } else if (['VT', 'RT'].includes(symbol)) {
-          workDays++;
-          lateCount++;
-        } else if (['S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
-          workDays++;
-          if (['T12', 'T16'].includes(symbol)) {
-            overtimeCount++;
-          }
-        } else if (['PN', 'PC', 'PT', 'DL', 'H', 'Hn', 'Hct'].includes(symbol)) {
-          absentDays++;
-          specialLeave++;
-        } else if (['N', 'No', 'Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'NB'].includes(symbol)) {
-          absentDays++;
+        // Số ngày làm việc (A)
+        if (['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
+          workDaysA++;
+        }
+        // Những ngày nghỉ không làm việc (C)
+        else if (['N1', 'N', 'No', 'Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'NB'].includes(symbol)) {
+          absentDaysC++;
+          absentNotes.push(`- Ngày nghỉ không làm việc: ${day}`);
+        }
+        // Phép
+        else if (['PN', 'PC', 'PT'].includes(symbol)) {
+          phepDays++;
+          absentNotes.push(`- Phép năm: ${day}`);
+        }
+        // BHXH (D) - bản thân ốm
+        else if (['Bo'].includes(symbol)) {
+          bhxhDays++;
+          absentNotes.push(`- Nghỉ không lương: ${day}`);
+        }
+        // Học, Hội nghỉ, Tập huấn, Hợp (E)
+        else if (['H', 'Hn', 'Hct'].includes(symbol)) {
+          hocHoiDays++;
+          absentNotes.push(`- Ngày nghỉ không làm việc: ${day}`);
+        }
+        // Các loại khác
+        else if (['DL', 'KH', 'NT'].includes(symbol)) {
+          khacDays++;
+          absentNotes.push(`- Ngày nghỉ không làm việc: ${day}`);
         }
       }
 
-      const totalDays = workDays + absentDays;
-      const attendanceRate = totalDays > 0 ? ((workDays / totalDays) * 100).toFixed(1) : 0;
+      // Tính toán theo công thức
+      const tongSoNgayLam = workDaysA;
+      const tongSoNgayNghi = absentDaysC + phepDays + bhxhDays + hocHoiDays + khacDays;
+      const tongCong = tongSoNgayLam + tongSoNgayNghi;
+
+      // Format ghi chú giống như trong ảnh
+      let note = '';
+      if (absentNotes.length > 0) {
+        // Nhóm các loại ghi chú lại
+        const phepNotes = absentNotes.filter(n => n.includes('Phép năm'));
+        const nghiNotes = absentNotes.filter(n => n.includes('Ngày nghỉ không làm việc'));
+        const khongLuongNotes = absentNotes.filter(n => n.includes('Nghỉ không lương'));
+
+        let noteArray = [];
+
+        if (phepNotes.length > 0) {
+          const days = phepNotes.map(n => n.split(': ')[1]).join(', ');
+          noteArray.push(`- Phép năm: ${phepNotes.length}`);
+        }
+
+        if (nghiNotes.length > 0) {
+          noteArray.push(`- Ngày nghỉ không làm việc: ${nghiNotes.length}`);
+        }
+
+        if (khongLuongNotes.length > 0) {
+          noteArray.push(`- Nghỉ không lương: ${khongLuongNotes.length}`);
+        }
+
+        note = noteArray.join('\n');
+      }
 
       return {
         ...nv,
-        workDays,
-        absentDays,
-        lateCount,
-        overtimeCount,
-        specialLeave,
-        totalDays,
-        attendanceRate,
-        note: absentDays > 3 ? `Nghỉ nhiều: ${absentDays} ngày` : ''
+        workDaysA,
+        absentDaysC,
+        phepDays,
+        bhxhDays,
+        hocHoiDays,
+        khacDays,
+        tongSoNgayLam,
+        tongSoNgayNghi,
+        tongCong,
+        note
       };
     });
 
     return summary;
-  }, [filteredEmployees, chamCongData, daysInMonth]);
+  }, [filteredEmployees, chamCongData, daysInMonth, kyHieuChamCongs]);
+
 
   // Lấy danh sách khoa phòng
   const fetchKhoaPhongs = useCallback(async () => {
@@ -331,7 +382,7 @@ function QuanLyBangChamCong() {
       }
 
       // Thêm các cột tổng hợp
-      headerRow1.push('Số ngày làm việc (A)', 'Những ngày nghỉ không lương (C)', 'Phép', 'BHXH (D)', 'Học, Hội nghỉ, Tập huấn, Hợp (E)', 'Khác (F)', 'Tổng số ngày làm (A+B)', 'Tổng số ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú');
+      headerRow1.push('Số ngày làm việc (A)', 'Những ngày nghỉ không làm việc (C)', 'Phép', 'BHXH (D)', 'Học, Hội nghỉ, Tập huấn, Hợp (E)', 'Khác (F)', 'Tổng số ngày làm (A+B)', 'Tổng số ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú');
       headerRow2.push('', '', '', '', '', '', '', '', '', '');
 
       wsData.push(headerRow1);
@@ -365,18 +416,17 @@ function QuanLyBangChamCong() {
 
         // Thêm các cột tổng hợp
         row.push(
-          nv.workDays,           // Số ngày làm việc
-          nv.absentDays - nv.specialLeave, // Nghỉ không lương
-          nv.specialLeave,       // Phép
-          0,                     // BHXH
-          0,                     // Học hội nghỉ
-          nv.lateCount,          // Khác
-          nv.workDays,           // Tổng ngày làm
-          nv.absentDays,         // Tổng ngày nghỉ
-          nv.totalDays,          // Tổng cộng
-          nv.note                // Ghi chú
+          nv.workDaysA,        // Số ngày làm việc (A)
+          nv.absentDaysC,      // Những ngày nghỉ không làm việc (C)
+          nv.phepDays,         // Phép
+          nv.bhxhDays,         // BHXH (F)
+          nv.hocHoiDays,       // Học, Hội nghỉ, Tập huấn, Hợp (E)
+          nv.khacDays,         // Khác (H)
+          nv.tongSoNgayLam,    // Tổng số ngày làm (A+B+C+D)
+          nv.tongSoNgayNghi,   // Tổng số ngày nghỉ (E+F+G+H)
+          nv.tongCong,         // Tổng cộng
+          nv.note              // Ghi chú
         );
-
         wsData.push(row);
       });
 
@@ -682,7 +732,7 @@ function QuanLyBangChamCong() {
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Khoa/phòng</th>
                       <th colSpan={daysInMonth} className="text-center py-2" style={{ fontSize: '12px', color: '#ff0000' }}>NGÀY TRONG THÁNG</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ffa500' }}>Số ngày làm việc (A)</th>
-                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ff6b6b' }}>Những ngày nghỉ không lương (C)</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ff6b6b' }}>Những ngày nghỉ không làm việc (C)</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '10px', backgroundColor: '#51cf66' }}>Phép</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '10px', backgroundColor: '#74c0fc' }}>BHXH (D)</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ffd43b' }}>Học, Hội nghỉ, Tập huấn, Hợp (E)</th>
@@ -723,39 +773,7 @@ function QuanLyBangChamCong() {
                   </thead>
                   <tbody>
                     {(() => {
-                      const summaryData = filteredEmployees.map(nv => {
-                        const employeeData = chamCongData[nv.id] || {};
-                        let workDays = 0;
-                        let absentDays = 0;
-                        let specialLeave = 0;
-                        let lateCount = 0;
-
-                        for (let day = 1; day <= daysInMonth; day++) {
-                          const symbol = employeeData[day] || '-';
-                          if (['x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
-                            workDays++;
-                          } else if (symbol !== '-' && !['P', 'PN'].includes(symbol)) {
-                            absentDays++;
-                          } else if (['P', 'PN'].includes(symbol)) {
-                            specialLeave++;
-                          }
-                          if (symbol === 'N1') lateCount++;
-                        }
-
-                        const totalDays = workDays + absentDays;
-                        return {
-                          id: nv.id,
-                          hoTen: nv.hoTen,
-                          ngayThangNamSinh: nv.ngayThangNamSinh || 'N/A',
-                          khoaPhong: nv.khoaPhong,
-                          workDays,
-                          absentDays,
-                          specialLeave,
-                          lateCount,
-                          totalDays,
-                          note: ''
-                        };
-                      });
+                      const summaryData = calculateSummaryData(); // Sử dụng hàm đã sửa
                       return summaryData.map((nv, index) => (
                         <tr key={nv.id} className="border-bottom">
                           <td className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>{index + 1}</td>
@@ -786,29 +804,39 @@ function QuanLyBangChamCong() {
                             );
                           })}
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3cd' }}>
-                            {nv.workDays}
+                            {nv.workDaysA}
                           </td>
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f8d7da' }}>
-                            {nv.absentDays - nv.specialLeave}
+                            {nv.absentDaysC}
                           </td>
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>
-                            {nv.specialLeave}
+                            {nv.phepDays}
                           </td>
-                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>-</td>
-                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>-</td>
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>
-                            {nv.lateCount}
+                            {nv.bhxhDays}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>
+                            {nv.hocHoiDays}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '12px' }}>
+                            {nv.khacDays}
                           </td>
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#d4edda' }}>
-                            {nv.workDays}
+                            {nv.tongSoNgayLam}
                           </td>
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f8d7da' }}>
-                            {nv.absentDays}
+                            {nv.tongSoNgayNghi}
                           </td>
                           <td className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3cd' }}>
-                            {nv.totalDays}
+                            {nv.tongCong}
                           </td>
-                          <td className="align-middle py-2" style={{ fontSize: '11px' }}>
+                          <td className="align-middle py-2" style={{
+                            fontSize: '11px',
+                            whiteSpace: 'pre-line',  // Cho phép xuống dòng với \n
+                            lineHeight: '1.4',       // Tăng khoảng cách dòng
+                            verticalAlign: 'top',    // Canh trên
+                            maxWidth: '150px'        // Giới hạn chiều rộng
+                          }}>
                             {nv.note}
                           </td>
                         </tr>
