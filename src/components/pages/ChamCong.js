@@ -85,6 +85,8 @@ function ChamCong() {
 
   // Determine shift based on time for historical data analysis
   const determineShiftFromTime = (thoiGianCheckIn) => {
+    // Vì chúng ta không dùng thời gian để xác định shift nữa,
+    // function này chỉ dùng cho hiển thị trong modal chi tiết
     if (!thoiGianCheckIn) return 1;
 
     const timePart = thoiGianCheckIn.split(' ')[1];
@@ -93,10 +95,9 @@ function ChamCong() {
     const [hours] = timePart.split(':');
     const hour = parseInt(hours);
 
-    // Simple logic: before 12:00 = shift 1 (sáng), after 12:00 = shift 2 (chiều)
+    // Vẫn giữ logic cũ cho việc hiển thị
     return hour < 12 ? 1 : 2;
   };
-
   // Refresh attendance data from API
   const refreshChamCongData = async () => {
     try {
@@ -144,17 +145,12 @@ function ChamCong() {
             if (chamCongDate) {
               const [day, month, year] = chamCongDate.split('-');
 
-              // Kiểm tra năm nếu có filter năm
               if (filterYear && parseInt(year) !== filterYear) {
                 matchFilter = false;
               }
-
-              // Kiểm tra tháng nếu có filter tháng
               if (filterMonth && parseInt(month) !== filterMonth) {
                 matchFilter = false;
               }
-
-              // Kiểm tra ngày nếu có filter ngày
               if (filterDay && parseInt(day) !== filterDay) {
                 matchFilter = false;
               }
@@ -173,41 +169,32 @@ function ChamCong() {
           }
         });
 
-        // Xử lý từng nhân viên - lấy 2 bản ghi gần nhất (nếu có)
+        // *** FIX: Xử lý từng nhân viên theo thứ tự thời gian, gán shift tuần tự ***
         Object.keys(groupedRecords).forEach((nhanVienId) => {
           const records = groupedRecords[nhanVienId];
 
           // Sắp xếp theo thời gian (cũ nhất đầu tiên)
           records.sort((a, b) => new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn)));
 
-          // Lấy tối đa 2 bản ghi
-          const processedRecords = records.slice(0, 2);
-
-          processedRecords.forEach((chamCong, index) => {
+          // *** LOGIC CHÍNH: Lần chấm công đầu tiên = shift 1 (sáng), lần thứ 2 = shift 2 (chiều) ***
+          records.forEach((chamCong, index) => {
             const trangThai = chamCong.trangThaiChamCong?.tenTrangThai;
 
-            // Determine shift: bản ghi đầu tiên = shift 1 (sáng), bản ghi thứ 2 = shift 2 (chiều)
-            let shift;
-            if (processedRecords.length === 1) {
-              // Chỉ có 1 bản ghi - determine by time
-              shift = determineShiftFromTime(chamCong.thoiGianCheckIn);
-            } else {
-              // Có 2 bản ghi - assign theo thứ tự thời gian: đầu tiên = sáng, thứ 2 = chiều
-              shift = index === 0 ? 1 : 2;
-            }
+            // Gán shift theo thứ tự: 0 -> shift 1, 1 -> shift 2
+            // Chỉ xử lý 2 bản ghi đầu tiên
+            if (index < 2) {
+              const shift = index + 1; // index 0 -> shift 1, index 1 -> shift 2
+              const key = `${nhanVienId}_${shift}`;
 
-            const key = `${nhanVienId}_${shift}`;
+              // Set trạng thái và chi tiết
+              status[key] = trangThai;
+              details[key] = chamCong;
 
-            // Set trạng thái
-            status[key] = trangThai;
-            details[key] = chamCong;
-
-            // Update ca lam viec selection from database if it's a LÀM record
-            if (chamCong.caLamViec && chamCong.caLamViec.id && trangThai === 'LÀM') {
-              caLamViecMap[key] = chamCong.caLamViec.id.toString();
-            } else if (trangThai === 'NGHỈ') {
-              // Cho NGHỈ thì không thay đổi ca làm việc mặc định
-              // Giữ nguyên ca mặc định đã set ở trên
+              // Update ca lam viec selection from database if it's a LÀM record
+              if (chamCong.caLamViec && chamCong.caLamViec.id && trangThai === 'LÀM') {
+                caLamViecMap[key] = chamCong.caLamViec.id.toString();
+              }
+              // Cho NGHỈ thì giữ nguyên ca mặc định đã set ở trên
             }
           });
         });
@@ -218,7 +205,7 @@ function ChamCong() {
       setChamCongDetails(details);
       setSelectedCaLamViec(caLamViecMap);
 
-      console.log('Refreshed attendance data:', {
+      console.log('Refreshed attendance data (Sequential Logic):', {
         status,
         details,
         caLamViecMap,
