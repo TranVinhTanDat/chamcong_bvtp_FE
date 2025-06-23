@@ -19,17 +19,16 @@ function QuanLyBangChamCong() {
   const [selectedKhoaPhongId, setSelectedKhoaPhongId] = useState(
     userRole === 'ADMIN' ? Number(userKhoaPhongId) : null
   );
-  const [isInitialized, setIsInitialized] = useState(false); // Thêm flag để track initialization
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
   const [summaryData, setSummaryData] = useState([]);
-  const [showSummary, setShowSummary] = useState(false); // Thêm dòng này
+  const [showSummary, setShowSummary] = useState(false);
 
   const getKyHieuDescription = (maKyHieu, kyHieuChamCongs) => {
     const kyHieu = kyHieuChamCongs.find(kh => kh.maKyHieu === maKyHieu);
     return kyHieu ? kyHieu.tenKyHieu : maKyHieu || 'Không xác định';
   };
-
 
   // Tính toán thống kê
   const calculateStatistics = useCallback(() => {
@@ -64,99 +63,159 @@ function QuanLyBangChamCong() {
     setStatistics(stats);
   }, [nhanViens, chamCongData]);
 
+  // Kiểm tra ngày cuối tuần
+  const isWeekend = (day) => {
+    const date = new Date(selectedYear, selectedMonth - 1, day);
+    return date.getDay() === 0 || date.getDay() === 6; // Chủ nhật = 0, Thứ 7 = 6
+  };
 
   // Tính toán dữ liệu tổng hợp cho từng nhân viên
   const calculateSummaryData = useCallback(() => {
     const summary = filteredEmployees.map(nv => {
       const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
-      let workDaysA = 0; // Số ngày làm việc (A)
-      let absentDaysB = 0; // Những ngày nghỉ không làm việc (B)
-      let phepDaysC = 0; // Phép (C)
-      let bhxhDaysD = 0; // BHXH (D)
-      let hocHoiDaysE = 0; // Học, Hội nghỉ, Tập huấn, Hợp (E)
-      let khacDaysF = 0; // Khác (F)
-      let absentNotes = []; // Ghi chú các ngày nghỉ
+
+      // Validate employeeData structure
+      if (!employeeData[1]) employeeData[1] = {};
+      if (!employeeData[2]) employeeData[2] = {};
+
+      let workDaysA = 0; // Số ngày làm việc (A) - mỗi ca = 0.5
+      let weekendDaysB = 0; // Những ngày nghỉ không làm việc (B) - ký hiệu "N1"
+      let phepDaysC = 0; // Phép (C) - PN, PC, PT
+      let bhxhDaysD = 0; // BHXH (D) - chỉ Bo (bản thân ốm)
+      let hocHoiDaysE = 0; // Học, Hội nghị (E) - H, Hn, Hct
+      let khacDaysF = 0; // Khác (F) - các loại khác
+      let absentNotes = [];
 
       // Duyệt qua từng ngày trong tháng
       for (let day = 1; day <= daysInMonth; day++) {
         const shift1Symbol = employeeData[1][day] || '-';
         const shift2Symbol = employeeData[2][day] || '-';
 
-        // Tính số ngày làm việc (A): Mỗi ca sáng/ca chiều tính 0.5 nếu là "LÀM"
-        if (['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) workDaysA += 0.5;
-        if (['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) workDaysA += 0.5;
+        // A. Số ngày làm việc (mỗi ca = 0.5, 1 ngày = 1.0)
+        // Các ký hiệu làm việc: X, VT, RT, S, C, T, T12, T16, CT
+        if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) {
+          workDaysA += 0.5;
+        }
+        if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) {
+          workDaysA += 0.5;
+        }
 
-        // Tính những ngày nghỉ không làm việc (B): Giảm 0.5 nếu là nghỉ không phép/BHXH
-        if (['N1', 'N', 'No'].includes(shift1Symbol)) absentDaysB += 0.5;
-        if (['N1', 'N', 'No'].includes(shift2Symbol)) absentDaysB += 0.5;
-        if (['N1', 'N', 'No'].includes(shift1Symbol)) absentNotes.push(`- Ngày nghỉ không làm việc: ${day} (ca sáng)`);
-        if (['N1', 'N', 'No'].includes(shift2Symbol)) absentNotes.push(`- Ngày nghỉ không làm việc: ${day} (ca chiều)`);
+        // B. Những ngày nghỉ không làm việc - ký hiệu "N1"
+        if (shift1Symbol === 'N1') {
+          weekendDaysB += 0.5;
+          absentNotes.push(`Nghỉ không làm việc: ${day} (ca sáng)`);
+        }
+        if (shift2Symbol === 'N1') {
+          weekendDaysB += 0.5;
+          absentNotes.push(`Nghỉ không làm việc: ${day} (ca chiều)`);
+        }
 
-        // Tính phép (C)
-        if (['PN', 'PC', 'PT'].includes(shift1Symbol)) phepDaysC += 0.5;
-        if (['PN', 'PC', 'PT'].includes(shift2Symbol)) phepDaysC += 0.5;
-        if (['PN', 'PC', 'PT'].includes(shift1Symbol)) absentNotes.push(`- Phép năm: ${day} (ca sáng)`);
-        if (['PN', 'PC', 'PT'].includes(shift2Symbol)) absentNotes.push(`- Phép năm: ${day} (ca chiều)`);
+        // C. Phép (PN, PC, PT)
+        if (['PN', 'PC', 'PT'].includes(shift1Symbol)) {
+          phepDaysC += 0.5;
+          absentNotes.push(`Phép: ${day} (ca sáng)`);
+        }
+        if (['PN', 'PC', 'PT'].includes(shift2Symbol)) {
+          phepDaysC += 0.5;
+          absentNotes.push(`Phép: ${day} (ca chiều)`);
+        }
 
-        // Tính BHXH (D)
-        if (['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'].includes(shift1Symbol)) bhxhDaysD += 0.5;
-        if (['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'].includes(shift2Symbol)) bhxhDaysD += 0.5;
-        if (['Bo'].includes(shift1Symbol)) absentNotes.push(`- BHXH (ốm): ${day} (ca sáng)`);
-        if (['Bo'].includes(shift2Symbol)) absentNotes.push(`- BHXH (ốm): ${day} (ca chiều)`);
+        // D. BHXH (chỉ Bo - bản thân ốm)
+        if (shift1Symbol === 'Bo') {
+          bhxhDaysD += 0.5;
+          absentNotes.push(`BHXH (bản thân ốm): ${day} (ca sáng)`);
+        }
+        if (shift2Symbol === 'Bo') {
+          bhxhDaysD += 0.5;
+          absentNotes.push(`BHXH (bản thân ốm): ${day} (ca chiều)`);
+        }
 
-        // Tính Học, Hội nghỉ, Tập huấn, Hợp (E)
-        if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) hocHoiDaysE += 0.5;
-        if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) hocHoiDaysE += 0.5;
-        if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) absentNotes.push(`- Học/Hội: ${day} (ca sáng)`);
-        if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) absentNotes.push(`- Học/Hội: ${day} (ca chiều)`);
+        // E. Học, Hội nghị (H, Hn, Hct)
+        if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) {
+          hocHoiDaysE += 0.5;
+          absentNotes.push(`Học/Hội: ${day} (ca sáng)`);
+        }
+        if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) {
+          hocHoiDaysE += 0.5;
+          absentNotes.push(`Học/Hội: ${day} (ca chiều)`);
+        }
 
-        // Tính Khác (F)
-        if (['DL', 'NB'].includes(shift1Symbol)) khacDaysF += 0.5;
-        if (['DL', 'NB'].includes(shift2Symbol)) khacDaysF += 0.5;
-        if (['DL', 'NB'].includes(shift1Symbol)) absentNotes.push(`- Khác: ${day} (ca sáng)`);
-        if (['DL', 'NB'].includes(shift2Symbol)) absentNotes.push(`- Khác: ${day} (ca chiều)`);
+        // F. Khác (tất cả các loại khác: DL, NB, Co, Ts, Ds, KH, NT, N, No)
+        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift1Symbol)) {
+          khacDaysF += 0.5;
+          absentNotes.push(`Khác (${shift1Symbol}): ${day} (ca sáng)`);
+        }
+        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift2Symbol)) {
+          khacDaysF += 0.5;
+          absentNotes.push(`Khác (${shift2Symbol}): ${day} (ca chiều)`);
+        }
       }
 
-      // Tính tổng theo công thức
-      const tongSoNgayLamAB = workDaysA - absentDaysB; // A + B (giảm trừ ngày nghỉ không làm việc)
-      const tongSoNgayNghiCDEF = absentDaysB + phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // C + D + E + F
-      const tongCong = tongSoNgayLamAB + tongSoNgayNghiCDEF;
+      // *** UPDATED: Tính toán theo yêu cầu mới ***
+      // Tổng số ngày làm (A+B) = bao gồm cả phép vì "có nghỉ phép thì vẫn cộng vào"
+      const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC; // A + B + C (phép)
 
-      // Format ghi chú
-      let note = '';
-      if (absentNotes.length > 0) {
-        const phepNotes = absentNotes.filter(n => n.includes('Phép năm'));
-        const nghiNotes = absentNotes.filter(n => n.includes('Ngày nghỉ không làm việc'));
-        const bhxhNotes = absentNotes.filter(n => n.includes('BHXH'));
-        const hocHoiNotes = absentNotes.filter(n => n.includes('Học/Hội'));
-        const khacNotes = absentNotes.filter(n => n.includes('Khác'));
+      // Tổng số ngày nghỉ (C+D+E+F) = giữ nguyên cách tính cũ, hiển thị bình thường
+      const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // C + D + E + F
 
-        let noteArray = [];
-        if (phepNotes.length > 0) noteArray.push(`- Phép năm: ${phepNotes.length} ngày`);
-        if (nghiNotes.length > 0) noteArray.push(`- Ngày nghỉ không làm việc: ${nghiNotes.length} ngày`);
-        if (bhxhNotes.length > 0) noteArray.push(`- BHXH: ${bhxhNotes.length} ngày`);
-        if (hocHoiNotes.length > 0) noteArray.push(`- Học/Hội: ${hocHoiNotes.length} ngày`);
-        if (khacNotes.length > 0) noteArray.push(`- Khác: ${khacNotes.length} ngày`);
-        note = noteArray.join('\n');
+      // Tổng cộng = Tổng số ngày làm (A+B) - bao gồm cả phép
+      const tongCong = tongSoNgayLamAB;
+
+      // Tạo ghi chú đơn giản
+      const noteArray = [];
+
+      if (weekendDaysB > 0) {
+        noteArray.push(`- Ngày nghỉ không làm việc: ${weekendDaysB.toFixed(1)}`);
       }
+
+      if (phepDaysC > 0) {
+        noteArray.push(`- Phép năm: ${phepDaysC.toFixed(1)}`);
+      }
+
+      if (bhxhDaysD > 0) {
+        noteArray.push(`- BHXH (bản thân ốm): ${bhxhDaysD.toFixed(1)}`);
+      }
+
+      if (hocHoiDaysE > 0) {
+        noteArray.push(`- Học/Hội: ${hocHoiDaysE.toFixed(1)}`);
+      }
+
+      if (khacDaysF > 0) {
+        noteArray.push(`- Khác: ${khacDaysF.toFixed(1)}`);
+      }
+
+      const note = noteArray.join('\n');
 
       return {
         ...nv,
-        workDaysA: workDaysA.toFixed(1), // Làm tròn đến 1 chữ số thập phân
-        absentDaysB: absentDaysB.toFixed(1), // Đổi tên cột B cho đúng với hình ảnh
-        phepDaysC: phepDaysC.toFixed(1), // Đổi tên cột C cho đúng với hình ảnh
-        bhxhDaysD: bhxhDaysD.toFixed(1), // Đổi tên cột D cho đúng với hình ảnh
-        hocHoiDaysE: hocHoiDaysE.toFixed(1), // Đổi tên cột E cho đúng với hình ảnh
-        khacDaysF: khacDaysF.toFixed(1), // Đổi tên cột F cho đúng với hình ảnh
-        tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1),
-        tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1),
-        tongCong: tongCong.toFixed(1),
+        workDaysA: workDaysA.toFixed(1),
+        weekendDaysB: weekendDaysB.toFixed(1), // Chỉ N1
+        phepDaysC: phepDaysC.toFixed(1),
+        bhxhDaysD: bhxhDaysD.toFixed(1),
+        hocHoiDaysE: hocHoiDaysE.toFixed(1),
+        khacDaysF: khacDaysF.toFixed(1),
+        tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1), // A + B + C (bao gồm phép)
+        tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1), // C + D + E + F (giữ nguyên)
+        tongCong: tongCong.toFixed(1), // = tongSoNgayLamAB
         note
       };
     });
 
     return summary;
-  }, [filteredEmployees, chamCongData, daysInMonth, kyHieuChamCongs]);
+  }, [filteredEmployees, chamCongData, daysInMonth]);
+
+  // DEBUGGING: Log để kiểm tra
+  console.log('Summary calculation updated:', {
+    note: 'Cột B now calculates N1 symbols instead of weekend days',
+    logic: {
+      A: 'Work days (X, VT, RT, S, C, T, T12, T16, CT) - 0.5 per shift',
+      B: 'Non-working rest days (N1) - 0.5 per shift',
+      C: 'Leave days (PN, PC, PT) - 0.5 per shift',
+      D: 'BHXH sick leave (Bo) - 0.5 per shift',
+      E: 'Training/Meeting (H, Hn, Hct) - 0.5 per shift',
+      F: 'Others (DL, NB, Co, Ts, Ds, KH, NT, N, No) - 0.5 per shift'
+    }
+  });
 
   // Lấy danh sách khoa phòng
   const fetchKhoaPhongs = useCallback(async () => {
@@ -182,7 +241,6 @@ function QuanLyBangChamCong() {
 
     try {
       setLoading(true);
-      // Lấy danh sách nhân viên
       const nhanVienResponse = await axiosInstance.get('/nhanvien', {
         params: { khoaPhongId: khoaPhongIdToUse, page: 0, size: 100 },
       });
@@ -193,7 +251,7 @@ function QuanLyBangChamCong() {
       if (nhanVienData.length === 0 && showNoDataToast) {
         toast.warn('Không có nhân viên nào trong khoa phòng này.');
       }
-      // Lấy dữ liệu chấm công
+
       const chamCongResponse = await axiosInstance.get('/chamcong/lichsu', {
         params: {
           year: selectedYear,
@@ -205,45 +263,86 @@ function QuanLyBangChamCong() {
       });
 
       const chamCongMap = {};
-      (chamCongResponse.data.content || []).forEach(record => {
-        const thoiGianCheckIn = record.thoiGianCheckIn;
-        let day, shift;
 
-        if (thoiGianCheckIn) {
-          const [datePart, timePart] = thoiGianCheckIn.split(' ');
-          const [dayStr, monthStr, yearStr] = datePart.split('-');
-          day = parseInt(dayStr, 10);
-          const recordMonth = parseInt(monthStr, 10);
-          const recordYear = parseInt(yearStr, 10);
+      // *** ĐỒNG BỘ VỚI LOGIC ChamCong.js: Nhóm theo nhân viên và ngày, sau đó gán shift tuần tự ***
+      if (chamCongResponse.data.content && Array.isArray(chamCongResponse.data.content)) {
+        // Nhóm các bản ghi chấm công theo nhân viên và ngày
+        const groupedRecords = {};
 
-          if (recordMonth !== selectedMonth || recordYear !== selectedYear) {
-            console.warn('Dữ liệu không đúng tháng/năm:', record);
-            return;
+        chamCongResponse.data.content.forEach((record) => {
+          if (record.nhanVien && record.nhanVien.id && record.nhanVien.trangThai === 1) {
+            const thoiGianCheckIn = record.thoiGianCheckIn;
+            let day;
+
+            if (thoiGianCheckIn) {
+              const [datePart] = thoiGianCheckIn.split(' ');
+              const [dayStr, monthStr, yearStr] = datePart.split('-');
+              day = parseInt(dayStr, 10);
+              const recordMonth = parseInt(monthStr, 10);
+              const recordYear = parseInt(yearStr, 10);
+
+              if (recordMonth !== selectedMonth || recordYear !== selectedYear) {
+                return;
+              }
+            } else {
+              return;
+            }
+
+            const nhanVienId = record.nhanVien.id;
+            const dateKey = `${nhanVienId}_${day}`;
+
+            if (!groupedRecords[dateKey]) {
+              groupedRecords[dateKey] = [];
+            }
+            groupedRecords[dateKey].push(record);
           }
-          // Xác định ca dựa trên giờ (giả sử ca sáng: trước 12h, ca chiều: sau 12h)
-          const [hours] = timePart.split(':');
-          shift = parseInt(hours) < 12 ? 1 : 2;
-        }
+        });
 
-        const nhanVienId = record.nhanVien?.id;
+        // Xử lý từng nhóm (nhân viên + ngày)
+        Object.keys(groupedRecords).forEach((dateKey) => {
+          const records = groupedRecords[dateKey];
+          const [nhanVienId, day] = dateKey.split('_');
+          const nhanVienIdNum = parseInt(nhanVienId);
+          const dayNum = parseInt(day);
 
-        if (nhanVienId && day && day >= 1 && day <= daysInMonth) {
-          if (!chamCongMap[nhanVienId]) chamCongMap[nhanVienId] = { 1: {}, 2: {} };
-          if (!chamCongMap[nhanVienId][shift]) chamCongMap[nhanVienId][shift] = {};
+          if (dayNum >= 1 && dayNum <= daysInMonth) {
+            if (!chamCongMap[nhanVienIdNum]) {
+              chamCongMap[nhanVienIdNum] = { 1: {}, 2: {} };
+            }
 
-          if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong) {
-            chamCongMap[nhanVienId][shift][day] = record.kyHieuChamCong.maKyHieu || 'N';
-          } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec) {
-            chamCongMap[nhanVienId][shift][day] = record.caLamViec.kyHieuChamCong?.maKyHieu || 'x';
-          } else {
-            chamCongMap[nhanVienId][shift][day] = '-';
+            // Sắp xếp theo thời gian (cũ nhất đầu tiên)
+            records.sort((a, b) => {
+              const parseDate = (dateStr) => {
+                if (!dateStr) return new Date();
+                const [datePart, timePart] = dateStr.split(' ');
+                const [day, month, year] = datePart.split('-');
+                return new Date(`${year}-${month}-${day}T${timePart}`);
+              };
+              return new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn));
+            });
+
+            // Gán shift theo thứ tự: bản ghi đầu tiên = shift 1, bản ghi thứ 2 = shift 2
+            records.forEach((record, index) => {
+              if (index < 2) { // Chỉ xử lý 2 bản ghi đầu tiên
+                const shift = index + 1; // index 0 -> shift 1, index 1 -> shift 2
+
+                // Xác định ký hiệu hiển thị
+                let symbol = '-';
+                if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong) {
+                  // Trạng thái NGHỈ
+                  symbol = record.kyHieuChamCong.maKyHieu || 'N';
+                } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec) {
+                  // Trạng thái LÀM
+                  symbol = record.caLamViec.kyHieuChamCong?.maKyHieu || 'X';
+                }
+
+                chamCongMap[nhanVienIdNum][shift][dayNum] = symbol;
+              }
+            });
           }
-        } else {
-          console.warn('Record thiếu thông tin hoặc ngày không hợp lệ:', record);
-        }
-      });
+        });
+      }
 
-      // Lọc dữ liệu chấm công chỉ cho nhân viên có trong nhanViens
       const filteredChamCongData = Object.keys(chamCongMap).reduce((acc, nhanVienId) => {
         if (nhanVienData.some(nv => nv.id === parseInt(nhanVienId))) {
           acc[nhanVienId] = chamCongMap[nhanVienId];
@@ -274,7 +373,7 @@ function QuanLyBangChamCong() {
     const initializeData = async () => {
       if (!isInitialized) {
         await fetchKhoaPhongs();
-        await fetchData(false); // Không hiển thị toast lần đầu
+        await fetchData(false);
         setIsInitialized(true);
       }
     };
@@ -282,10 +381,10 @@ function QuanLyBangChamCong() {
     initializeData();
   }, [isInitialized, fetchKhoaPhongs, fetchData]);
 
-  // Tải dữ liệu khi thay đổi khoa phòng, tháng hoặc năm (chỉ sau khi đã initialize)
+  // Tải dữ liệu khi thay đổi khoa phòng, tháng hoặc năm
   useEffect(() => {
     if (isInitialized) {
-      fetchData(true); // Hiển thị toast khi user thay đổi filter
+      fetchData(true);
     }
   }, [selectedKhoaPhongId, selectedMonth, selectedYear, fetchData, isInitialized]);
 
@@ -353,174 +452,374 @@ function QuanLyBangChamCong() {
       nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'TC-HCQT';
 
     if (showSummary) {
-      // Xuất dữ liệu tổng hợp
+      // Xuất dữ liệu tổng hợp - CẢI THIỆN
       const summaryData = calculateSummaryData();
       const wsData = [];
 
-      // Header chính - 3 dòng đầu
-      wsData.push(['BỆNH VIỆN QUẬN TÂN PHÚ', '', '', '', '', '', '', '', '', '', '', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM']);
-      wsData.push(['PHÒNG ' + khoaPhongName, '', '', '', '', '', '', '', '', '', '', 'Độc lập - Tự do - Hạnh phúc']);
+      // Header thông tin bệnh viện
+      wsData.push(['BỆNH VIỆN QUẬN TÂN PHÚ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM']);
+      wsData.push(['PHÒNG ' + khoaPhongName, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Độc lập - Tự do - Hạnh phúc']);
       wsData.push([]);
       wsData.push([`BẢNG TỔNG HỢP CHẤM CÔNG`]);
       wsData.push([`THÁNG ${selectedMonth} NĂM ${selectedYear}`]);
       wsData.push([]);
 
-      // Bảng chấm công chi tiết
+      // Header chính - 3 dòng
       const headerRow1 = ['', 'Họ Tên', 'Ngày tháng năm sinh', 'Khoa/phòng'];
       const headerRow2 = ['', '', '', '', 'NGÀY TRONG THÁNG'];
+      const headerRow3 = ['STT', '', '', ''];
 
       // Thêm các ngày trong tháng
       for (let i = 1; i <= daysInMonth; i++) {
         headerRow1.push('');
         headerRow2.push(i.toString());
+
+        // Thêm tên thứ cho dòng 3
+        const date = new Date(selectedYear, selectedMonth - 1, i);
+        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+        headerRow3.push(dayName);
       }
 
       // Thêm các cột tổng hợp
-      headerRow1.push('Số ngày làm việc (A)', 'Những ngày nghỉ không làm việc (B)', 'Phép (C)', 'BHXH (D)', 'Học, Hội nghỉ, Tập huấn, Hợp (E)', 'Khác (F)', 'Tổng số ngày làm (A+B)', 'Tổng số ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú');
-      headerRow2.push('', '', '', '', '', '', '', '', '', '');
+      const summaryColumns = [
+        'Số ngày làm việc (A)',
+        'Những ngày nghỉ không làm việc (B)',
+        'Phép (C)',
+        'BHXH (D)',
+        'Học, Hội nghỉ, Tập huấn, Hợp (E)',
+        'Khác (F)',
+        'Tổng số ngày làm (A+B)',
+        'Tổng số ngày nghỉ (C+D+E+F)',
+        'Tổng cộng',
+        'Ghi chú'
+      ];
+
+      summaryColumns.forEach(col => {
+        headerRow1.push(col);
+        headerRow2.push('');
+        headerRow3.push('');
+      });
 
       wsData.push(headerRow1);
       wsData.push(headerRow2);
-
-      // Dòng phụ đề cho các cột
-      const subHeaderRow = ['STT', '', '', ''];
-      for (let i = 1; i <= daysInMonth; i++) {
-        const date = new Date(selectedYear, selectedMonth - 1, i);
-        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
-        subHeaderRow.push(dayName);
-      }
-      subHeaderRow.push('(B)', '', '', '', '', '', '', '', '', '');
-      wsData.push(subHeaderRow);
+      wsData.push(headerRow3);
 
       // Dữ liệu nhân viên
       summaryData.forEach((nv, index) => {
         const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
-        // Dòng ca sáng
+
+        // Dòng ca 1
         const row1 = [
           index + 1,
           nv.hoTen || 'N/A',
           nv.ngayThangNamSinh || 'N/A',
           nv.khoaPhong?.tenKhoaPhong || khoaPhongName
         ];
+
         for (let day = 1; day <= daysInMonth; day++) {
           const shift1Symbol = employeeData[1][day] || '-';
           row1.push(shift1Symbol);
         }
-        row1.push(nv.workDaysA, nv.absentDaysC, nv.phepDays, nv.bhxhDays, nv.hocHoiDays, nv.khacDays, nv.tongSoNgayLam, nv.tongSoNgayNghi, nv.tongCong, nv.note);
+
+        row1.push(
+          nv.workDaysA,
+          nv.weekendDaysB,
+          nv.phepDaysC,
+          nv.bhxhDaysD,
+          nv.hocHoiDaysE,
+          nv.khacDaysF,
+          nv.tongSoNgayLamAB,
+          nv.tongSoNgayNghiCDEF,
+          nv.tongCong,
+          nv.note
+        );
         wsData.push(row1);
 
-        // Dòng ca chiều
+        // Dòng ca 2
         const row2 = ['', '', '', ''];
         for (let day = 1; day <= daysInMonth; day++) {
           const shift2Symbol = employeeData[2][day] || '-';
           row2.push(shift2Symbol);
         }
-        row2.push('', '', '', '', '', '', '', '', '', '');
+        // Thêm các ô trống cho cột tổng hợp
+        summaryColumns.forEach(() => row2.push(''));
         wsData.push(row2);
       });
+
+      // Thêm chú thích ký hiệu - CẢI THIỆN: Chia thành 2 cột
+      wsData.push([]);
+      wsData.push(['CHÚ THÍCH KÝ HIỆU:']);
+      wsData.push([]);
+
+      // Chia ký hiệu thành 2 cột
+      const midPoint = Math.ceil(kyHieuChamCongs.length / 2);
+      const leftColumn = kyHieuChamCongs.slice(0, midPoint);
+      const rightColumn = kyHieuChamCongs.slice(midPoint);
+
+      // Header cho 2 cột ký hiệu
+      wsData.push(['Ký hiệu', 'Ý nghĩa', '', 'Ký hiệu', 'Ý nghĩa']);
+
+      // Dữ liệu ký hiệu
+      for (let i = 0; i < Math.max(leftColumn.length, rightColumn.length); i++) {
+        const row = [];
+
+        // Cột trái
+        if (i < leftColumn.length) {
+          row.push(leftColumn[i].maKyHieu, leftColumn[i].tenKyHieu);
+        } else {
+          row.push('', '');
+        }
+
+        row.push(''); // Cột trống giữa
+
+        // Cột phải
+        if (i < rightColumn.length) {
+          row.push(rightColumn[i].maKyHieu, rightColumn[i].tenKyHieu);
+        } else {
+          row.push('', '');
+        }
+
+        wsData.push(row);
+      }
+
+      // Thêm ký hiệu đặc biệt
+      wsData.push(['-', 'Không có dữ liệu']);
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
       // Thiết lập độ rộng cột
       const colWidths = [
-        { wch: 5 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
+        { wch: 5 },   // STT
+        { wch: 25 },  // Họ tên
+        { wch: 15 },  // Ngày sinh
+        { wch: 15 },  // Khoa phòng
       ];
-      for (let i = 0; i < daysInMonth; i++) colWidths.push({ wch: 4 });
-      colWidths.push({ wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 20 });
+
+      // Cột ngày
+      for (let i = 0; i < daysInMonth; i++) {
+        colWidths.push({ wch: 4 });
+      }
+
+      // Cột tổng hợp
+      colWidths.push(
+        { wch: 12 }, // A
+        { wch: 12 }, // B
+        { wch: 8 },  // C
+        { wch: 8 },  // D
+        { wch: 15 }, // E
+        { wch: 8 },  // F
+        { wch: 12 }, // A+B
+        { wch: 12 }, // C+D+E+F
+        { wch: 10 }, // Tổng cộng
+        { wch: 25 }  // Ghi chú
+      );
 
       ws['!cols'] = colWidths;
 
-      // Merge cells cho header và dữ liệu
-      ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
-        { s: { r: 0, c: 11 }, e: { r: 0, c: daysInMonth + 13 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
-        { s: { r: 1, c: 11 }, e: { r: 1, c: daysInMonth + 13 } },
+      // Thiết lập merge cells
+      const merges = [
+        // Header bệnh viện
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+        { s: { r: 0, c: 17 }, e: { r: 0, c: daysInMonth + 13 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+        { s: { r: 1, c: 17 }, e: { r: 1, c: daysInMonth + 13 } },
+
+        // Tiêu đề bảng
         { s: { r: 3, c: 0 }, e: { r: 3, c: daysInMonth + 13 } },
         { s: { r: 4, c: 0 }, e: { r: 4, c: daysInMonth + 13 } },
-        { s: { r: 6, c: 4 }, e: { r: 6, c: 3 + daysInMonth } },
+
+        // Header "NGÀY TRONG THÁNG"
+        { s: { r: 7, c: 4 }, e: { r: 7, c: 3 + daysInMonth } },
       ];
+
+      // Merge cells cho từng nhân viên (STT, Họ tên, Ngày sinh, Khoa phòng)
       for (let i = 0; i < summaryData.length; i++) {
-        ws['!merges'].push({ s: { r: 7 + i * 2, c: 0 }, e: { r: 8 + i * 2, c: 3 } });
+        const startRow = 9 + i * 2;
+        merges.push(
+          { s: { r: startRow, c: 0 }, e: { r: startRow + 1, c: 0 } }, // STT
+          { s: { r: startRow, c: 1 }, e: { r: startRow + 1, c: 1 } }, // Họ tên
+          { s: { r: startRow, c: 2 }, e: { r: startRow + 1, c: 2 } }, // Ngày sinh
+          { s: { r: startRow, c: 3 }, e: { r: startRow + 1, c: 3 } }  // Khoa phòng
+        );
+
+        // Merge các cột tổng hợp
+        for (let col = 4 + daysInMonth; col < 4 + daysInMonth + 10; col++) {
+          merges.push({ s: { r: startRow, c: col }, e: { r: startRow + 1, c: col } });
+        }
       }
 
+      ws['!merges'] = merges;
+
       XLSX.utils.book_append_sheet(wb, ws, 'Tổng Hợp Chấm Công');
+
     } else {
-      // Xuất dữ liệu chi tiết
+      // Xuất dữ liệu chi tiết - CẢI THIỆN
       const wsData = [];
-      wsData.push([`BẢNG CHẤM CÔNG THÁNG ${selectedMonth}/${selectedYear}`]);
-      const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
-        nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'N/A';
+
+      // Header thông tin
+      wsData.push([`BẢNG CHẤM CÔNG CHI TIẾT THÁNG ${selectedMonth}/${selectedYear}`]);
       wsData.push([`Khoa phòng: ${khoaPhongName}`]);
       wsData.push([`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`]);
+      wsData.push([`Tổng số nhân viên: ${filteredEmployees.length}`]);
       wsData.push([]);
 
-      const headerRow = ['STT', 'Mã NV', 'Họ và Tên', 'Khoa Phòng'];
-      for (let i = 1; i <= daysInMonth; i++) headerRow.push(i.toString());
-      headerRow.push('Tổng làm việc', 'Tổng nghỉ', 'Tỷ lệ (%)', 'Ghi chú');
-      wsData.push(headerRow);
+      // Header bảng - 3 dòng
+      const headerRow1 = ['STT', 'Mã NV', 'Họ và Tên', 'Khoa Phòng'];
+      const headerRow2 = ['', '', '', '', 'NGÀY TRONG THÁNG (CA SÁNG / CA CHIỀU)'];
+      const headerRow3 = ['', '', '', ''];
 
+      // Thêm header ngày
+      for (let i = 1; i <= daysInMonth; i++) {
+        headerRow1.push(i.toString());
+        headerRow2.push('');
+
+        const date = new Date(selectedYear, selectedMonth - 1, i);
+        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+        headerRow3.push(dayName);
+      }
+
+      // Thêm cột thống kê
+      headerRow1.push('Số ngày làm việc', 'Số ngày nghỉ', 'Tỷ lệ chấm công (%)', 'Ghi chú');
+      headerRow2.push('', '', '', '');
+      headerRow3.push('', '', '', '');
+
+      wsData.push(headerRow1);
+      wsData.push(headerRow2);
+      wsData.push(headerRow3);
+
+      // Dữ liệu nhân viên
       filteredEmployees.forEach((nv, index) => {
         const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
         let workDays = 0;
         let absentDays = 0;
 
-        const row = [index + 1, nv.maNV || 'N/A', nv.hoTen || 'N/A', nv.khoaPhong?.tenKhoaPhong || 'N/A'];
+        const row = [
+          index + 1,
+          nv.maNV || 'N/A',
+          nv.hoTen || 'N/A',
+          nv.khoaPhong?.tenKhoaPhong || 'N/A'
+        ];
 
         for (let day = 1; day <= daysInMonth; day++) {
           const shift1Symbol = employeeData[1][day] || '-';
           const shift2Symbol = employeeData[2][day] || '-';
-          const symbol = (['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol) || ['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) ? 'x' : shift2Symbol;
-          row.push(symbol);
 
-          if (['x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(symbol)) {
-            workDays++;
-          } else if (symbol !== '-') {
-            absentDays++;
-          }
+          // Hiển thị cả 2 ca
+          const combinedSymbol = `${shift1Symbol}/${shift2Symbol}`;
+          row.push(combinedSymbol);
+
+          // Tính thống kê
+          if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) workDays += 0.5;
+          if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) workDays += 0.5;
+
+          if (shift1Symbol !== '-' && !['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) absentDays += 0.5;
+          if (shift2Symbol !== '-' && !['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) absentDays += 0.5;
         }
 
         const total = workDays + absentDays;
         const rate = total > 0 ? ((workDays / total) * 100).toFixed(1) : '0';
-        row.push(workDays, absentDays, rate + '%', '');
+
+        row.push(workDays.toFixed(1), absentDays.toFixed(1), rate + '%', '');
         wsData.push(row);
       });
 
+      // Thống kê tổng
+      wsData.push([]);
+      wsData.push(['THỐNG KÊ TỔNG QUAN:']);
+      wsData.push([`- Tổng số nhân viên: ${filteredEmployees.length}`]);
+      wsData.push([`- Nhân viên có dữ liệu chấm công: ${Object.keys(chamCongData).length}`]);
+      wsData.push([`- Tỷ lệ chấm công trung bình: ${statistics.attendanceRate}%`]);
+
+      // Chú thích ký hiệu - CẢI THIỆN: Chia thành 2 cột
       wsData.push([]);
       wsData.push(['CHÚ THÍCH KÝ HIỆU:']);
-      const legendRow = [];
-      kyHieuChamCongs.forEach(kh => legendRow.push(`${kh.maKyHieu}: ${kh.tenKyHieu}`));
-      wsData.push(legendRow);
-      wsData.push(['-: Không có dữ liệu']);
+      wsData.push([]);
+
+      // Chia ký hiệu thành 2 cột
+      const midPoint = Math.ceil(kyHieuChamCongs.length / 2);
+      const leftColumn = kyHieuChamCongs.slice(0, midPoint);
+      const rightColumn = kyHieuChamCongs.slice(midPoint);
+
+      // Header cho 2 cột ký hiệu
+      wsData.push(['Ký hiệu', 'Ý nghĩa', '', 'Ký hiệu', 'Ý nghĩa']);
+
+      // Dữ liệu ký hiệu
+      for (let i = 0; i < Math.max(leftColumn.length, rightColumn.length); i++) {
+        const row = [];
+
+        // Cột trái
+        if (i < leftColumn.length) {
+          row.push(leftColumn[i].maKyHieu, leftColumn[i].tenKyHieu);
+        } else {
+          row.push('', '');
+        }
+
+        row.push(''); // Cột trống giữa
+
+        // Cột phải  
+        if (i < rightColumn.length) {
+          row.push(rightColumn[i].maKyHieu, rightColumn[i].tenKyHieu);
+        } else {
+          row.push('', '');
+        }
+
+        wsData.push(row);
+      }
+
+      // Thêm ký hiệu đặc biệt
+      wsData.push(['-/-', 'Không có dữ liệu cả 2 ca']);
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      const colWidths = [{ wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }];
-      for (let i = 0; i < daysInMonth; i++) colWidths.push({ wch: 4 });
-      colWidths.push({ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 });
+      // Thiết lập độ rộng cột
+      const colWidths = [
+        { wch: 5 },   // STT
+        { wch: 12 },  // Mã NV
+        { wch: 25 },  // Họ tên
+        { wch: 15 },  // Khoa phòng
+      ];
+
+      // Cột ngày (rộng hơn vì hiển thị 2 ca)
+      for (let i = 0; i < daysInMonth; i++) {
+        colWidths.push({ wch: 8 });
+      }
+
+      // Cột thống kê
+      colWidths.push(
+        { wch: 15 }, // Số ngày làm việc
+        { wch: 12 }, // Số ngày nghỉ
+        { wch: 15 }, // Tỷ lệ
+        { wch: 20 }  // Ghi chú
+      );
+
       ws['!cols'] = colWidths;
 
-      ws['!merges'] = [
+      // Merge cells
+      const merges = [
+        // Header thông tin
         { s: { r: 0, c: 0 }, e: { r: 0, c: daysInMonth + 7 } },
         { s: { r: 1, c: 0 }, e: { r: 1, c: daysInMonth + 7 } },
         { s: { r: 2, c: 0 }, e: { r: 2, c: daysInMonth + 7 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: daysInMonth + 7 } },
+
+        // Header "NGÀY TRONG THÁNG"
+        { s: { r: 6, c: 4 }, e: { r: 6, c: 3 + daysInMonth } },
       ];
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Chấm Công');
+      ws['!merges'] = merges;
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Chấm Công Chi Tiết');
     }
 
-    const fileName = `${showSummary ? 'TongHop_' : ''}ChamCong_Thang${selectedMonth.toString().padStart(2, '0')}_${selectedYear}_${new Date().getTime()}.xlsx`;
+    // Tạo tên file
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const fileName = `${showSummary ? 'TongHop_' : 'ChiTiet_'}ChamCong_Thang${selectedMonth.toString().padStart(2, '0')}_${selectedYear}_${timestamp}.xlsx`;
+
+    // Lưu file
     XLSX.writeFile(wb, fileName);
-    toast.success('Xuất file Excel thành công!');
+    toast.success(`Xuất file Excel ${showSummary ? 'tổng hợp' : 'chi tiết'} thành công!`);
   };
 
-
-  const isWeekend = (day) => {
-    const date = new Date(selectedYear, selectedMonth - 1, day);
-    return date.getDay() === 0 || date.getDay() === 6;
-  };
-
-  // Hàm refresh với toast
   const handleRefresh = () => {
     fetchData(true);
   };
@@ -638,7 +937,7 @@ function QuanLyBangChamCong() {
           ) : filteredEmployees.length > 0 ? (
             <div className="table-responsive" style={{ maxHeight: '600px', overflowY: 'auto' }}>
               {!showSummary ? (
-                // Bảng chấm công chi tiết
+                // Bảng chấm công chi tiết - FIXED: Mỗi nhân viên chỉ 1 dòng với 2 ca hiển thị trên cùng 1 dòng
                 <table className="table table-hover mb-0">
                   <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
                     <tr>
@@ -651,7 +950,7 @@ function QuanLyBangChamCong() {
                     <tr>
                       {Array.from({ length: daysInMonth }, (_, i) => (
                         <th key={i + 1} className="text-center py-2" style={{
-                          minWidth: '30px',
+                          minWidth: '50px',
                           fontSize: '11px',
                           backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
                           color: 'white'
@@ -666,7 +965,7 @@ function QuanLyBangChamCong() {
                         const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
                         return (
                           <th key={i + 1} className="text-center py-2" style={{
-                            minWidth: '30px',
+                            minWidth: '50px',
                             fontSize: '10px',
                             backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
                             color: 'white'
@@ -678,74 +977,75 @@ function QuanLyBangChamCong() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEmployees.flatMap((nv, index) => {
+                    {filteredEmployees.map((nv, index) => {
                       const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
-                      return [1, 2].map((shift) => {
-                        const personallyShift = shift === 1 ? 'Ca sáng' : 'Ca chiều';
-                        return (
-                          <>
-                            <tr key={`${nv.id}_${shift}`} className="border-bottom">
-                              <td rowSpan="2" className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
-                                {index + 1}
-                              </td>
-                              <td rowSpan="2" className="align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>
-                                {nv.hoTen}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
-                                {nv.ngayThangNamSinh || 'N/A'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
-                                {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
-                              </td>
-                              {Array.from({ length: daysInMonth }, (_, day) => {
-                                const symbol = employeeData[shift][day + 1] || '-';
-                                const isWeekendDay = isWeekend(day + 1);
-                                return (
-                                  <td
-                                    key={day + 1}
-                                    className="text-center align-middle p-1"
+                      return (
+                        <tr key={nv.id} className="border-bottom">
+                          <td className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
+                            {index + 1}
+                          </td>
+                          <td className="align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>
+                            {nv.hoTen}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
+                            {nv.ngayThangNamSinh || 'N/A'}
+                          </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
+                            {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
+                          </td>
+                          {Array.from({ length: daysInMonth }, (_, day) => {
+                            const shift1Symbol = employeeData[1][day + 1] || '-';
+                            const shift2Symbol = employeeData[2][day + 1] || '-';
+                            const isWeekendDay = isWeekend(day + 1);
+                            return (
+                              <td
+                                key={day + 1}
+                                className="text-center align-middle p-1"
+                                style={{
+                                  backgroundColor: isWeekendDay ? '#ffe6e6' : '#ffffff',
+                                  minWidth: '50px',
+                                  fontSize: '10px',
+                                  fontWeight: 'bold',
+                                  border: '1px solid #dee2e6',
+                                  verticalAlign: 'middle'
+                                }}
+                              >
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                  <span
                                     style={{
-                                      ...getCellStyle(symbol),
-                                      backgroundColor: isWeekendDay && symbol === '-' ? '#ffe6e6' : getCellStyle(symbol).backgroundColor,
-                                      minWidth: '30px',
-                                      fontSize: '10px',
-                                      fontWeight: 'bold'
+                                      ...getCellStyle(shift1Symbol),
+                                      display: 'inline-block',
+                                      width: '100%',
+                                      padding: '1px',
+                                      borderRadius: '2px',
+                                      fontSize: '9px'
                                     }}
                                   >
-                                    {symbol}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                            <tr key={`${nv.id}_${shift}_sub`} className="border-bottom">
-                              {Array.from({ length: daysInMonth }, (_, day) => {
-                                const symbol = employeeData[shift][day + 1] || '-';
-                                const isWeekendDay = isWeekend(day + 1);
-                                return (
-                                  <td
-                                    key={day + 1}
-                                    className="text-center align-middle p-1"
+                                    {shift1Symbol}
+                                  </span>
+                                  <span
                                     style={{
-                                      ...getCellStyle(symbol),
-                                      backgroundColor: isWeekendDay && symbol === '-' ? '#ffe6e6' : getCellStyle(symbol).backgroundColor,
-                                      minWidth: '30px',
-                                      fontSize: '10px',
-                                      fontWeight: 'bold'
+                                      ...getCellStyle(shift2Symbol),
+                                      display: 'inline-block',
+                                      width: '100%',
+                                      padding: '1px',
+                                      borderRadius: '2px',
+                                      fontSize: '9px'
                                     }}
                                   >
-                                    {symbol}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          </>
-                        );
-                      });
+                                    {shift2Symbol}
+                                  </span>
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
                     })}
                   </tbody>
                 </table>
               ) : (
-                // Bảng tổng hợp
+                // Bảng tổng hợp với logic mới
                 <table className="table table-hover mb-0">
                   <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
                     <tr>
@@ -796,70 +1096,11 @@ function QuanLyBangChamCong() {
                   </thead>
                   <tbody>
                     {(() => {
-                      const summaryData = calculateSummaryData(); // Lấy dữ liệu tổng hợp ban đầu
+                      const summaryData = calculateSummaryData();
                       return filteredEmployees.map((nv, index) => {
                         const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
+                        const summaryItem = summaryData.find(item => item.id === nv.id);
 
-                        // Tính toán tổng hợp cho cả 2 ca
-                        let workDaysA = 0;
-                        let absentDaysC = 0;
-                        let phepDays = 0;
-                        let bhxhDays = 0;
-                        let hocHoiDays = 0;
-                        let khacDays = 0;
-                        let absentNotes = [];
-
-                        for (let day = 1; day <= daysInMonth; day++) {
-                          const shift1Symbol = employeeData[1][day] || '-';
-                          const shift2Symbol = employeeData[2][day] || '-';
-
-                          if (['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol) || ['X', 'x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) {
-                            workDaysA++;
-                          }
-                          if (['N1', 'N', 'No', 'Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'NB'].includes(shift1Symbol) || ['N1', 'N', 'No', 'Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'NB'].includes(shift2Symbol)) {
-                            absentDaysC++;
-                            absentNotes.push(`- Ngày nghỉ không làm việc: ${day}`);
-                          }
-                          if (['PN', 'PC', 'PT'].includes(shift1Symbol) || ['PN', 'PC', 'PT'].includes(shift2Symbol)) {
-                            phepDays++;
-                            absentNotes.push(`- Phép năm: ${day}`);
-                          }
-                          if (['Bo'].includes(shift1Symbol) || ['Bo'].includes(shift2Symbol)) {
-                            bhxhDays++;
-                            absentNotes.push(`- Nghỉ không lương: ${day}`);
-                          }
-                          if (['H', 'Hn', 'Hct'].includes(shift1Symbol) || ['H', 'Hn', 'Hct'].includes(shift2Symbol)) {
-                            hocHoiDays++;
-                            absentNotes.push(`- Học/Hội: ${day}`);
-                          }
-                          if (['DL', 'KH', 'NT'].includes(shift1Symbol) || ['DL', 'KH', 'NT'].includes(shift2Symbol)) {
-                            khacDays++;
-                            absentNotes.push(`- Khác: ${day}`);
-                          }
-                        }
-
-                        const tongSoNgayLam = workDaysA;
-                        const tongSoNgayNghi = absentDaysC + phepDays + bhxhDays + hocHoiDays + khacDays;
-                        const tongCong = tongSoNgayLam + tongSoNgayNghi;
-
-                        let note = '';
-                        if (absentNotes.length > 0) {
-                          const phepNotes = absentNotes.filter(n => n.includes('Phép năm'));
-                          const nghiNotes = absentNotes.filter(n => n.includes('Ngày nghỉ không làm việc'));
-                          const khongLuongNotes = absentNotes.filter(n => n.includes('Nghỉ không lương'));
-                          const hocHoiNotes = absentNotes.filter(n => n.includes('Học/Hội'));
-                          const khacNotes = absentNotes.filter(n => n.includes('Khác'));
-
-                          let noteArray = [];
-                          if (phepNotes.length > 0) noteArray.push(`- Phép năm: ${phepNotes.length}`);
-                          if (nghiNotes.length > 0) noteArray.push(`- Ngày nghỉ không làm việc: ${nghiNotes.length}`);
-                          if (khongLuongNotes.length > 0) noteArray.push(`- Nghỉ không lương: ${khongLuongNotes.length}`);
-                          if (hocHoiNotes.length > 0) noteArray.push(`- Học/Hội: ${hocHoiNotes.length}`);
-                          if (khacNotes.length > 0) noteArray.push(`- Khác: ${khacNotes.length}`);
-                          note = noteArray.join('\n');
-                        }
-
-                        // Trả về fragment bọc 2 dòng
                         return (
                           <>
                             <tr key={nv.id} className="border-bottom">
@@ -877,7 +1118,6 @@ function QuanLyBangChamCong() {
                               </td>
                               {Array.from({ length: daysInMonth }, (_, day) => {
                                 const shift1Symbol = employeeData[1][day + 1] || '-';
-                                const shift2Symbol = employeeData[2][day + 1] || '-';
                                 const isWeekendDay = isWeekend(day + 1);
                                 return (
                                   <td
@@ -896,31 +1136,31 @@ function QuanLyBangChamCong() {
                                 );
                               })}
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f3ff' }}>
-                                {workDaysA}
+                                {summaryItem?.workDaysA || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#ffe6e6' }}>
-                                {absentDaysC}
+                                {summaryItem?.weekendDaysB || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6ffe6' }}>
-                                {phepDays}
+                                {summaryItem?.phepDaysC || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f0ff' }}>
-                                {bhxhDays}
+                                {summaryItem?.bhxhDaysD || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3e6' }}>
-                                {hocHoiDays}
+                                {summaryItem?.hocHoiDaysE || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f0f0f0' }}>
-                                {khacDays}
+                                {summaryItem?.khacDaysF || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#d9f2e6' }}>
-                                {tongSoNgayLam}
+                                {summaryItem?.tongSoNgayLamAB || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#ffe6e6' }}>
-                                {tongSoNgayNghi}
+                                {summaryItem?.tongSoNgayNghiCDEF || '0.0'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff9e6' }}>
-                                {tongCong}
+                                {summaryItem?.tongCong || '0.0'}
                               </td>
                               <td rowSpan="2" className="align-middle py-2" style={{
                                 fontSize: '11px',
@@ -930,7 +1170,7 @@ function QuanLyBangChamCong() {
                                 maxWidth: '150px',
                                 backgroundColor: '#f8f9fa'
                               }}>
-                                {note}
+                                {summaryItem?.note || ''}
                               </td>
                             </tr>
                             <tr key={`${nv.id}_2`} className="border-bottom">

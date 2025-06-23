@@ -41,7 +41,6 @@ function ChamCong() {
 
   const itemsPerPage = 10;
 
-
   // Parse date from backend format (dd-MM-yyyy HH:mm:ss)
   const parseDate = (dateStr) => {
     if (!dateStr) return new Date();
@@ -82,7 +81,6 @@ function ChamCong() {
     return `${dayStr}-${monthStr}-${year}`;
   };
 
-
   // Determine shift based on time for historical data analysis
   const determineShiftFromTime = (thoiGianCheckIn) => {
     // Vì chúng ta không dùng thời gian để xác định shift nữa,
@@ -98,6 +96,7 @@ function ChamCong() {
     // Vẫn giữ logic cũ cho việc hiển thị
     return hour < 12 ? 1 : 2;
   };
+
   // Refresh attendance data from API
   const refreshChamCongData = async () => {
     try {
@@ -190,11 +189,11 @@ function ChamCong() {
               status[key] = trangThai;
               details[key] = chamCong;
 
-              // Update ca lam viec selection from database if it's a LÀM record
-              if (chamCong.caLamViec && chamCong.caLamViec.id && trangThai === 'LÀM') {
+              // Update ca lam viec selection from database cho cả LÀM và NGHỈ
+              if (chamCong.caLamViec && chamCong.caLamViec.id) {
                 caLamViecMap[key] = chamCong.caLamViec.id.toString();
               }
-              // Cho NGHỈ thì giữ nguyên ca mặc định đã set ở trên
+              // Cho trường hợp không có caLamViec thì giữ nguyên ca mặc định đã set ở trên
             }
           });
         });
@@ -291,6 +290,7 @@ function ChamCong() {
     };
     if (userRole) fetchInitialData();
   }, [filterKhoaPhongId, userRole, userKhoaPhongId]);
+
   // Update filteredNhanViens when searchTerm changes
   useEffect(() => {
     const filtered = filterNhanViens(allNhanViens, searchTerm);
@@ -311,9 +311,10 @@ function ChamCong() {
     setFormData((prev) => {
       const newFormData = { ...prev, [name]: value };
       if (name === 'trangThai') {
-        if (value === 'NGHỈ') {
-          newFormData.caLamViecId = '';
-        } else if (value === 'LÀM' && editingChamCong && selectedShift) {
+        if (value === 'LÀM' && editingChamCong && selectedShift) {
+          newFormData.caLamViecId = selectedCaLamViec[`${editingChamCong.nhanVien.id}_${selectedShift}`] || '';
+        } else if (value === 'NGHỈ' && editingChamCong && selectedShift) {
+          // Giữ nguyên caLamViecId hiện tại cho trạng thái NGHỈ
           newFormData.caLamViecId = selectedCaLamViec[`${editingChamCong.nhanVien.id}_${selectedShift}`] || '';
         }
       }
@@ -353,7 +354,7 @@ function ChamCong() {
     });
 
     // Update formData if this is the current employee being processed
-    if (formData.nhanVienId === validNhanVienId && formData.trangThai === 'LÀM' && !isNghiModalOpen && !isEditModalOpen) {
+    if (formData.nhanVienId === validNhanVienId && !isNghiModalOpen && !isEditModalOpen) {
       setFormData((prev) => ({
         ...prev,
         caLamViecId: validCaLamViecId.toString(),
@@ -382,14 +383,11 @@ function ChamCong() {
       const payload = {
         nhanVienId: nhanVienId,
         trangThai: formData.trangThai,
-        filterDate: currentFilterDate, // THÊM MỚI
-        ...(formData.trangThai === 'LÀM' && {
-          caLamViecId: parseInt(formData.caLamViecId),
-        }),
+        filterDate: currentFilterDate,
+        caLamViecId: parseInt(formData.caLamViecId), // Bắt buộc cho cả LÀM và NGHỈ
         ...(formData.trangThai === 'NGHỈ' && {
           maKyHieuChamCong: formData.kyHieuChamCong,
           ghiChu: formData.ghiChu,
-          caLamViecId: formData.caLamViecId ? parseInt(formData.caLamViecId) : undefined,
         }),
       };
 
@@ -433,13 +431,16 @@ function ChamCong() {
         return;
       }
 
+      // Set ca làm việc mặc định cho modal nghỉ
+      const defaultCaId = selectedCaLamViec[`${validNhanVienId}_${shift}`] || '';
+
       setFormData((prev) => ({
         ...prev,
         nhanVienId: validNhanVienId,
         trangThai,
         kyHieuChamCong: '',
         ghiChu: '',
-        caLamViecId: '',
+        caLamViecId: defaultCaId,
       }));
       setSelectedNhanVien(nhanVien);
       setSelectedShift(shift);
@@ -543,7 +544,8 @@ function ChamCong() {
   const showDetail = (nhanVienId, shift) => {
     const detail = chamCongDetails[`${nhanVienId}_${shift}`];
     if (detail) {
-      setSelectedDetail(detail);
+      // Thêm thông tin shift vào detail để hiển thị đúng trong modal
+      setSelectedDetail({...detail, displayShift: shift});
       setShowDetailModal(true);
     }
   };
@@ -564,7 +566,7 @@ function ChamCong() {
       setFormData({
         nhanVienId: chamCongDetail.nhanVien.id,
         trangThai: chamCongDetail.trangThaiChamCong?.tenTrangThai || 'LÀM',
-        caLamViecId: chamCongDetail.trangThaiChamCong?.tenTrangThai === 'LÀM' ? currentCaLamViecId : '',
+        caLamViecId: currentCaLamViecId, // Luôn set ca làm việc cho cả LÀM và NGHỈ
         kyHieuChamCong: chamCongDetail.kyHieuChamCong?.maKyHieu || '',
         ghiChu: chamCongDetail.ghiChu || '',
       });
@@ -584,9 +586,7 @@ function ChamCong() {
     try {
       const payload = {
         trangThai: formData.trangThai,
-        ...(formData.trangThai === 'LÀM' && {
-          caLamViecId: parseInt(formData.caLamViecId),
-        }),
+        caLamViecId: parseInt(formData.caLamViecId), // Bắt buộc cho cả LÀM và NGHỈ
         ...(formData.trangThai === 'NGHỈ' && {
           maKyHieuChamCong: formData.kyHieuChamCong,
           ghiChu: formData.ghiChu,
@@ -855,6 +855,27 @@ function ChamCong() {
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
                 <div className="mb-3">
+                  <label htmlFor="caLamViecNghi" className="form-label">
+                    Ca làm việc
+                  </label>
+                  <select
+                    className="form-select"
+                    id="caLamViecNghi"
+                    name="caLamViecId"
+                    value={formData.caLamViecId}
+                    onChange={handleChange}
+                    required
+                    disabled={caLamViecs.length === 0}
+                  >
+                    <option value="">-- Chọn ca làm việc --</option>
+                    {caLamViecs.map((ca) => (
+                      <option key={ca.id} value={ca.id}>
+                        {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
                   <label htmlFor="kyHieuChamCong" className="form-label">
                     Ký hiệu chấm công
                   </label>
@@ -900,7 +921,7 @@ function ChamCong() {
                 <button
                   type="submit"
                   className="btn btn-danger"
-                  disabled={kyHieuChamCongs.length === 0 || !formData.kyHieuChamCong || !formData.ghiChu}
+                  disabled={caLamViecs.length === 0 || kyHieuChamCongs.length === 0 || !formData.caLamViecId || !formData.kyHieuChamCong || !formData.ghiChu}
                 >
                   Xác nhận
                 </button>
@@ -958,7 +979,7 @@ function ChamCong() {
                             <td><strong>Ca:</strong></td>
                             <td>
                               <span className="badge bg-info">
-                                {determineShiftFromTime(selectedDetail.thoiGianCheckIn) === 1 ? 'Sáng' : 'Chiều'}
+                                {selectedDetail.displayShift === 1 ? 'Sáng' : 'Chiều'}
                               </span>
                             </td>
                           </tr>
@@ -1044,25 +1065,23 @@ function ChamCong() {
                     </select>
                   </div>
 
-                  {formData.trangThai === 'LÀM' && (
-                    <div className="mb-3">
-                      <label className="form-label">Ca làm việc</label>
-                      <select
-                        className="form-select"
-                        name="caLamViecId"
-                        value={formData.caLamViecId || ''}
-                        onChange={handleChange}
-                        required
-                      >
-                        <option value="">Chọn ca làm việc</option>
-                        {caLamViecs.map((ca) => (
-                          <option key={ca.id} value={ca.id}>
-                            {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  <div className="mb-3">
+                    <label className="form-label">Ca làm việc</label>
+                    <select
+                      className="form-select"
+                      name="caLamViecId"
+                      value={formData.caLamViecId || ''}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="">Chọn ca làm việc</option>
+                      {caLamViecs.map((ca) => (
+                        <option key={ca.id} value={ca.id}>
+                          {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   {formData.trangThai === 'NGHỈ' && (
                     <>
