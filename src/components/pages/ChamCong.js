@@ -3,7 +3,13 @@ import axiosInstance from '../../utils/axiosInstance';
 import { toast } from 'react-toastify';
 
 function ChamCong() {
-  const [formData, setFormData] = useState({ nhanVienId: '', trangThai: 'LÀM', caLamViecId: '', kyHieuChamCong: '', ghiChu: '' });
+  const [formData, setFormData] = useState({
+    nhanVienId: '',
+    trangThai: 'LÀM',
+    caLamViecId: '',
+    kyHieuChamCong: '',
+    ghiChu: ''
+  });
   const [loading, setLoading] = useState(true);
   const [allNhanViens, setAllNhanViens] = useState([]);
   const [filteredNhanViens, setFilteredNhanViens] = useState([]);
@@ -11,10 +17,12 @@ function ChamCong() {
   const [caLamViecs, setCaLamViecs] = useState([]);
   const [khoaPhongs, setKhoaPhongs] = useState([]);
   const [selectedNhanVien, setSelectedNhanVien] = useState(null);
-  const [isLamModalOpen, setIsLamModalOpen] = useState(false);
   const [isNghiModalOpen, setIsNghiModalOpen] = useState(false);
-  const [checkInStatus, setCheckInStatus] = useState({});
-  const [chamCongDetails, setChamCongDetails] = useState({});
+
+  // Logic 2 dòng cố định: sáng (shift 1) và chiều (shift 2)
+  const [checkInStatus, setCheckInStatus] = useState({}); // {nhanVienId_shift: 'LÀM'/'NGHỈ'/null}
+  const [chamCongDetails, setChamCongDetails] = useState({}); // {nhanVienId_shift: chamCongData}
+
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -26,14 +34,15 @@ function ChamCong() {
   const [filterKhoaPhongId, setFilterKhoaPhongId] = useState(null);
   const [userRole, setUserRole] = useState(localStorage.getItem('role'));
   const [userKhoaPhongId, setUserKhoaPhongId] = useState(localStorage.getItem('khoaPhongId'));
-  const [selectedCaLamViec, setSelectedCaLamViec] = useState({});
-
+  const [selectedCaLamViec, setSelectedCaLamViec] = useState({}); // {nhanVienId_shift: caId}
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingChamCong, setEditingChamCong] = useState(null);
+  const [selectedShift, setSelectedShift] = useState(null); // Track which shift is being processed
 
   const itemsPerPage = 10;
 
-  // Hàm chuyển đổi định dạng ngày từ backend (dd-MM-yyyy HH:mm:ss)
+
+  // Parse date from backend format (dd-MM-yyyy HH:mm:ss)
   const parseDate = (dateStr) => {
     if (!dateStr) return new Date();
     const [datePart, timePart] = dateStr.split(' ');
@@ -41,30 +50,187 @@ function ChamCong() {
     return new Date(`${year}-${month}-${day}T${timePart}`);
   };
 
-  // Tạo danh sách năm (10 năm gần nhất)
+  // Generate years (last 10 years)
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
 
-  // Tạo danh sách tháng
+  // Generate months
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  // Tạo danh sách ngày dựa trên tháng/năm
+  // Generate days based on year/month
   const getDaysInMonth = (year, month) => {
     if (!year || !month) return [];
     const days = new Date(year, month, 0).getDate();
     return Array.from({ length: days }, (_, i) => i + 1);
   };
 
-  // Hàm lọc dữ liệu dựa trên searchTerm
+  // Filter employees based on search term
   const filterNhanViens = (nhanViens, term) => {
     if (!term) return nhanViens;
     const lowerCaseTerm = term.toLowerCase();
-    return nhanViens.filter(nv =>
-      (nv.maNV && nv.maNV.toLowerCase().includes(lowerCaseTerm)) ||
-      (nv.hoTen && nv.hoTen.toLowerCase().includes(lowerCaseTerm))
+    return nhanViens.filter(
+      (nv) =>
+        (nv.maNV && nv.maNV.toLowerCase().includes(lowerCaseTerm)) ||
+        (nv.hoTen && nv.hoTen.toLowerCase().includes(lowerCaseTerm))
     );
   };
 
-  // Lấy dữ liệu ban đầu
+  // Format date for API (dd-MM-yyyy)
+  const formatDateForAPI = (year, month, day) => {
+    if (!year || !month || !day) return null;
+    const dayStr = String(day).padStart(2, '0');
+    const monthStr = String(month).padStart(2, '0');
+    return `${dayStr}-${monthStr}-${year}`;
+  };
+
+  // Determine shift based on time for historical data analysis
+  const determineShiftFromTime = (thoiGianCheckIn) => {
+    if (!thoiGianCheckIn) return 1;
+
+    const timePart = thoiGianCheckIn.split(' ')[1];
+    if (!timePart) return 1;
+
+    const [hours] = timePart.split(':');
+    const hour = parseInt(hours);
+
+    // Simple logic: before 12:00 = shift 1 (sáng), after 12:00 = shift 2 (chiều)
+    return hour < 12 ? 1 : 2;
+  };
+
+  // Refresh attendance data from API
+  const refreshChamCongData = async () => {
+    try {
+      const params = {
+        page: 0,
+        size: 1000,
+        year: filterYear || undefined,
+        month: filterMonth || undefined,
+        day: filterDay || undefined,
+        khoaPhongId: filterKhoaPhongId || undefined,
+      };
+
+      const lichSuResponse = await axiosInstance.get('/chamcong/lichsu', { params });
+      const chamCongPage = lichSuResponse.data;
+
+      // RESET HOÀN TOÀN dữ liệu trước khi xử lý
+      const status = {};
+      const details = {};
+      const caLamViecMap = {};
+
+      // Khởi tạo ca làm việc mặc định cho tất cả nhân viên trước
+      if (caLamViecs.length > 0) {
+        const caSang = caLamViecs.find(ca => ca.id === 11); // "Ca Sáng" (id=11)
+        const caChieu = caLamViecs.find(ca => ca.id === 12); // "Ca Chiều" (id=12)
+        const defaultCaSangId = caSang ? caSang.id.toString() : caLamViecs[0].id.toString();
+        const defaultCaChieuId = caChieu ? caChieu.id.toString() : caLamViecs[0].id.toString();
+
+        allNhanViens.forEach((nv) => {
+          caLamViecMap[`${nv.id}_1`] = defaultCaSangId; // Ca Sáng cho shift 1
+          caLamViecMap[`${nv.id}_2`] = defaultCaChieuId; // Ca Chiều cho shift 2
+        });
+      }
+
+      if (chamCongPage.content && Array.isArray(chamCongPage.content)) {
+        // Nhóm các bản ghi chấm công theo nhân viên và ngày
+        const groupedRecords = {};
+
+        chamCongPage.content.forEach((chamCong) => {
+          if (chamCong.nhanVien && chamCong.nhanVien.id && chamCong.nhanVien.trangThai === 1) {
+            const chamCongDate = chamCong.thoiGianCheckIn ? chamCong.thoiGianCheckIn.split(' ')[0] : null;
+
+            // Kiểm tra điều kiện lọc linh hoạt
+            let matchFilter = true;
+
+            if (chamCongDate) {
+              const [day, month, year] = chamCongDate.split('-');
+
+              // Kiểm tra năm nếu có filter năm
+              if (filterYear && parseInt(year) !== filterYear) {
+                matchFilter = false;
+              }
+
+              // Kiểm tra tháng nếu có filter tháng
+              if (filterMonth && parseInt(month) !== filterMonth) {
+                matchFilter = false;
+              }
+
+              // Kiểm tra ngày nếu có filter ngày
+              if (filterDay && parseInt(day) !== filterDay) {
+                matchFilter = false;
+              }
+            } else {
+              matchFilter = false;
+            }
+
+            if (matchFilter) {
+              const nhanVienId = chamCong.nhanVien.id;
+
+              if (!groupedRecords[nhanVienId]) {
+                groupedRecords[nhanVienId] = [];
+              }
+              groupedRecords[nhanVienId].push(chamCong);
+            }
+          }
+        });
+
+        // Xử lý từng nhân viên - lấy 2 bản ghi gần nhất (nếu có)
+        Object.keys(groupedRecords).forEach((nhanVienId) => {
+          const records = groupedRecords[nhanVienId];
+
+          // Sắp xếp theo thời gian (cũ nhất đầu tiên)
+          records.sort((a, b) => new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn)));
+
+          // Lấy tối đa 2 bản ghi
+          const processedRecords = records.slice(0, 2);
+
+          processedRecords.forEach((chamCong, index) => {
+            const trangThai = chamCong.trangThaiChamCong?.tenTrangThai;
+
+            // Determine shift: bản ghi đầu tiên = shift 1 (sáng), bản ghi thứ 2 = shift 2 (chiều)
+            let shift;
+            if (processedRecords.length === 1) {
+              // Chỉ có 1 bản ghi - determine by time
+              shift = determineShiftFromTime(chamCong.thoiGianCheckIn);
+            } else {
+              // Có 2 bản ghi - assign theo thứ tự thời gian: đầu tiên = sáng, thứ 2 = chiều
+              shift = index === 0 ? 1 : 2;
+            }
+
+            const key = `${nhanVienId}_${shift}`;
+
+            // Set trạng thái
+            status[key] = trangThai;
+            details[key] = chamCong;
+
+            // Update ca lam viec selection from database if it's a LÀM record
+            if (chamCong.caLamViec && chamCong.caLamViec.id && trangThai === 'LÀM') {
+              caLamViecMap[key] = chamCong.caLamViec.id.toString();
+            } else if (trangThai === 'NGHỈ') {
+              // Cho NGHỈ thì không thay đổi ca làm việc mặc định
+              // Giữ nguyên ca mặc định đã set ở trên
+            }
+          });
+        });
+      }
+
+      // Cập nhật state
+      setCheckInStatus(status);
+      setChamCongDetails(details);
+      setSelectedCaLamViec(caLamViecMap);
+
+      console.log('Refreshed attendance data:', {
+        status,
+        details,
+        caLamViecMap,
+        filterYear,
+        filterMonth,
+        filterDay
+      });
+    } catch (error) {
+      console.error('Error refreshing attendance data:', error);
+    }
+  };
+
+  // Fetch initial data
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -80,7 +246,7 @@ function ChamCong() {
         }
 
         const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
-        const activeKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
+        const activeKyHieuChamCongs = kyHieuResponse.data.filter((kyHieu) => kyHieu.trangThai);
         setKyHieuChamCongs(activeKyHieuChamCongs);
 
         const caLamViecResponse = await axiosInstance.get('/ca-lam-viec');
@@ -89,6 +255,7 @@ function ChamCong() {
         }
         setCaLamViecs(caLamViecResponse.data);
 
+        // Fetch all employees
         const fetchAllNhanViens = async () => {
           let allData = [];
           let page = 0;
@@ -105,19 +272,25 @@ function ChamCong() {
           setFilteredNhanViens(allData);
           setTotalPages(Math.ceil(allData.length / itemsPerPage));
 
-          // Khởi tạo selectedCaLamViec với giá trị mặc định
-          const defaultCa = caLamViecResponse.data.find(ca => ca.kyHieuChamCong.maKyHieu === 'x') || caLamViecResponse.data[0];
-          if (defaultCa) {
+          // Initialize default ca lam viec selections with "Ca Sáng" and "Ca Chiều"
+          if (caLamViecResponse.data.length > 0) {
+            const caSang = caLamViecResponse.data.find(ca => ca.id === 11); // "Ca Sáng" (id=11)
+            const caChieu = caLamViecResponse.data.find(ca => ca.id === 12); // "Ca Chiều" (id=12)
+            const defaultCaSangId = caSang ? caSang.id.toString() : caLamViecResponse.data[0].id.toString();
+            const defaultCaChieuId = caChieu ? caChieu.id.toString() : caLamViecResponse.data[0].id.toString();
             const caLamViecMap = {};
-            allData.forEach(nv => {
-              caLamViecMap[nv.id] = defaultCa.id.toString();
+            allData.forEach((nv) => {
+              caLamViecMap[`${nv.id}_1`] = defaultCaSangId; // Ca Sáng cho shift 1
+              caLamViecMap[`${nv.id}_2`] = defaultCaChieuId; // Ca Chiều cho shift 2
             });
             setSelectedCaLamViec(caLamViecMap);
           }
+
+          return allData;
         };
+
         await fetchAllNhanViens();
 
-        // Đồng bộ thời gian với ngày hiện tại
         const today = new Date();
         setFilterYear(today.getFullYear());
         setFilterMonth(today.getMonth() + 1);
@@ -130,8 +303,7 @@ function ChamCong() {
     };
     if (userRole) fetchInitialData();
   }, [filterKhoaPhongId, userRole, userKhoaPhongId]);
-
-  // Cập nhật filteredNhanViens khi searchTerm thay đổi
+  // Update filteredNhanViens when searchTerm changes
   useEffect(() => {
     const filtered = filterNhanViens(allNhanViens, searchTerm);
     setFilteredNhanViens(filtered);
@@ -139,57 +311,29 @@ function ChamCong() {
     setCurrentPage(0);
   }, [searchTerm, allNhanViens]);
 
-  // Lấy lịch sử chấm công theo trang
-useEffect(() => {
-  const fetchData = async () => {
-    if (!userRole || (userRole === 'NGUOICHAMCONG' && !userKhoaPhongId)) return;
-    try {
-      setLoading(true);
-      const params = {
-        page: currentPage,
-        size: itemsPerPage,
-        year: filterYear || undefined,
-        month: filterMonth || undefined,
-        day: filterDay || undefined,
-        khoaPhongId: filterKhoaPhongId || undefined,
-      };
-
-      const lichSuResponse = await axiosInstance.get('/chamcong/lichsu', { params });
-      const chamCongPage = lichSuResponse.data;
-      const status = {};
-      const details = {};
-      const caLamViecMap = { ...selectedCaLamViec };
-
-      (chamCongPage.content || []).forEach(chamCong => {
-        if (chamCong.nhanVien && chamCong.nhanVien.id && chamCong.nhanVien.trangThai === 1) {
-          const nhanVienId = chamCong.nhanVien.id;
-          status[nhanVienId] = chamCong.trangThaiChamCong?.tenTrangThai;
-          details[nhanVienId] = chamCong;
-
-          if (chamCong.caLamViec && chamCong.caLamViec.id) {
-            caLamViecMap[nhanVienId] = chamCong.caLamViec.id.toString();
-          }
-        }
-      });
-
-      setCheckInStatus(status);
-      setChamCongDetails(details);
-      setSelectedCaLamViec(caLamViecMap);
-    } catch (error) {
-      toast.error(`Lỗi khi tải dữ liệu: ${error.response?.data?.error || error.message}`);
-    } finally {
-      setLoading(false);
+  // Fetch attendance data when filters change
+  useEffect(() => {
+    if (allNhanViens.length > 0 && caLamViecs.length > 0) {
+      refreshChamCongData();
     }
-  };
-  fetchData();
-}, [currentPage, filterYear, filterMonth, filterDay, filterKhoaPhongId, userRole, userKhoaPhongId, caLamViecs]);
+  }, [filterYear, filterMonth, filterDay, filterKhoaPhongId, allNhanViens, caLamViecs]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const newFormData = { ...prev, [name]: value };
+      if (name === 'trangThai') {
+        if (value === 'NGHỈ') {
+          newFormData.caLamViecId = '';
+        } else if (value === 'LÀM' && editingChamCong && selectedShift) {
+          newFormData.caLamViecId = selectedCaLamViec[`${editingChamCong.nhanVien.id}_${selectedShift}`] || '';
+        }
+      }
+      return newFormData;
+    });
   };
 
-  const handleCaLamViecChange = (nhanVienId, caLamViecId) => {
+  const handleCaLamViecChange = (nhanVienId, caLamViecId, shift) => {
     const validNhanVienId = parseInt(nhanVienId);
     const validCaLamViecId = parseInt(caLamViecId);
 
@@ -198,18 +342,37 @@ useEffect(() => {
       return;
     }
 
-    if (!validCaLamViecId || isNaN(validCaLamViecId)) {
+    if (!caLamViecId || caLamViecId === '') {
+      setSelectedCaLamViec((prev) => {
+        const newMap = { ...prev };
+        newMap[`${validNhanVienId}_${shift}`] = '';
+        return newMap;
+      });
+      return;
+    }
+
+    if (!validCaLamViecId || isNaN(validCaLamViecId) || !caLamViecs.find((ca) => ca.id === validCaLamViecId)) {
       toast.error('ID ca làm việc không hợp lệ!');
       return;
     }
 
-    setSelectedCaLamViec(prev => ({
-      ...prev,
-      [validNhanVienId]: validCaLamViecId.toString()
-    }));
+    console.log(`Setting ca ${validCaLamViecId} for employee ${validNhanVienId} shift ${shift}`);
+
+    setSelectedCaLamViec((prev) => {
+      const newMap = { ...prev };
+      newMap[`${validNhanVienId}_${shift}`] = validCaLamViecId.toString();
+      return newMap;
+    });
+
+    // Update formData if this is the current employee being processed
+    if (formData.nhanVienId === validNhanVienId && formData.trangThai === 'LÀM' && !isNghiModalOpen && !isEditModalOpen) {
+      setFormData((prev) => ({
+        ...prev,
+        caLamViecId: validCaLamViecId.toString(),
+      }));
+    }
   };
 
-  // Sửa handleSubmit
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -223,50 +386,20 @@ useEffect(() => {
         nhanVienId: nhanVienId,
         trangThai: formData.trangThai,
         ...(formData.trangThai === 'LÀM' && {
-          caLamViecId: parseInt(formData.caLamViecId)
+          caLamViecId: parseInt(formData.caLamViecId),
         }),
         ...(formData.trangThai === 'NGHỈ' && {
           maKyHieuChamCong: formData.kyHieuChamCong,
           ghiChu: formData.ghiChu,
-          caLamViecId: formData.caLamViecId ? parseInt(formData.caLamViecId) : undefined // Gửi caLamViecId nếu có
+          caLamViecId: formData.caLamViecId ? parseInt(formData.caLamViecId) : undefined,
         }),
       };
-
-      console.log('Payload gửi đi:', payload);
 
       const response = await axiosInstance.post('/chamcong/checkin', payload);
       toast.success(response.data.message || 'Chấm công thành công');
 
-      // Reload dữ liệu sau khi chấm công
-      const params = {
-        page: currentPage,
-        size: itemsPerPage,
-        year: filterYear || undefined,
-        month: filterMonth || undefined,
-        day: filterDay || undefined,
-        khoaPhongId: filterKhoaPhongId || undefined,
-      };
-      const lichSuResponse = await axiosInstance.get('/chamcong/lichsu', { params });
-      const chamCongPage = lichSuResponse.data;
-      const status = {};
-      const details = {};
-      const caLamViecMap = { ...selectedCaLamViec }; // Giữ nguyên giá trị hiện tại
-
-      (chamCongPage.content || []).forEach(chamCong => {
-        if (chamCong.nhanVien && chamCong.nhanVien.id) {
-          const nhanVienId = chamCong.nhanVien.id;
-          status[nhanVienId] = chamCong.trangThaiChamCong?.tenTrangThai;
-          details[nhanVienId] = chamCong;
-
-          if (chamCong.caLamViec && chamCong.caLamViec.id) {
-            caLamViecMap[nhanVienId] = chamCong.caLamViec.id.toString();
-          }
-        }
-      });
-
-      setCheckInStatus(status);
-      setChamCongDetails(details);
-      setSelectedCaLamViec(caLamViecMap);
+      // Refresh data
+      await refreshChamCongData();
       closeModal();
     } catch (error) {
       console.error('Lỗi chi tiết:', error.response?.data);
@@ -275,31 +408,24 @@ useEffect(() => {
     }
   };
 
-  // Sửa handleChamCong
-  const handleChamCong = async (nhanVienId, trangThai) => {
+  // Handle attendance action
+  const handleChamCong = async (nhanVienId, trangThai, shift) => {
     const validNhanVienId = parseInt(nhanVienId);
     if (!validNhanVienId || isNaN(validNhanVienId)) {
       toast.error('ID nhân viên không hợp lệ!');
       return;
     }
 
-    const nhanVien = filteredNhanViens.find(nv => nv.id === validNhanVienId);
+    const nhanVien = filteredNhanViens.find((nv) => nv.id === validNhanVienId);
     if (!nhanVien) {
       toast.error('Không tìm thấy nhân viên!');
       return;
     }
 
-    let caLamViecId = selectedCaLamViec[validNhanVienId];
-    if (!caLamViecId && caLamViecs.length > 0) {
-      caLamViecId = caLamViecs.find(ca => ca.kyHieuChamCong.maKyHieu === 'x')?.id.toString() || caLamViecs[0].id.toString();
-      setSelectedCaLamViec(prev => ({
-        ...prev,
-        [validNhanVienId]: caLamViecId
-      }));
-    }
-
-    if (trangThai === 'LÀM' && (!caLamViecId || !caLamViecs.find(ca => ca.id.toString() === caLamViecId))) {
-      toast.error('Vui lòng chọn ca làm việc hợp lệ!');
+    // Check if already checked in for this shift
+    const currentStatus = checkInStatus[`${validNhanVienId}_${shift}`];
+    if (currentStatus) {
+      toast.error(`Nhân viên đã được chấm công cho ca ${shift === 1 ? 'sáng' : 'chiều'}!`);
       return;
     }
 
@@ -308,76 +434,106 @@ useEffect(() => {
         toast.error('Không có ký hiệu chấm công nào khả dụng!');
         return;
       }
-      setFormData(prev => ({
+
+      setFormData((prev) => ({
         ...prev,
         nhanVienId: validNhanVienId,
         trangThai,
         kyHieuChamCong: '',
         ghiChu: '',
-        caLamViecId: caLamViecId || '' // Gửi caLamViecId mặc định nếu có
+        caLamViecId: '',
       }));
       setSelectedNhanVien(nhanVien);
+      setSelectedShift(shift);
       setIsNghiModalOpen(true);
-    } else {
-      try {
-        const payload = {
-          nhanVienId: validNhanVienId,
-          trangThai: 'LÀM',
-          caLamViecId: parseInt(caLamViecId)
-        };
+      return;
+    }
 
-        console.log('Payload gửi đi:', payload);
+    // Handle 'LÀM' case
+    let caLamViecId = selectedCaLamViec[`${validNhanVienId}_${shift}`];
 
-        const response = await axiosInstance.post('/chamcong/checkin', payload);
-        toast.success(response.data.message || 'Chấm công thành công');
+    // Auto-select default ca if none selected
+    if (!caLamViecId && caLamViecs.length > 0) {
+      caLamViecId = caLamViecs[0].id.toString();
+      setSelectedCaLamViec((prev) => ({
+        ...prev,
+        [`${validNhanVienId}_${shift}`]: caLamViecId,
+      }));
+    }
 
-        // Reload dữ liệu sau khi chấm công
-        const params = {
-          page: currentPage,
-          size: itemsPerPage,
-          year: filterYear || undefined,
-          month: filterMonth || undefined,
-          day: filterDay || undefined,
-          khoaPhongId: filterKhoaPhongId || undefined,
-        };
-        const lichSuResponse = await axiosInstance.get('/chamcong/lichsu', { params });
-        const chamCongPage = lichSuResponse.data;
-        const status = {};
-        const details = {};
-        const caLamViecMap = { ...selectedCaLamViec };
+    // Validate ca làm việc
+    if (!caLamViecId || !caLamViecs.find((ca) => ca.id.toString() === caLamViecId)) {
+      toast.error('Vui lòng chọn ca làm việc hợp lệ!');
+      return;
+    }
 
-        (chamCongPage.content || []).forEach(chamCong => {
-          if (chamCong.nhanVien && chamCong.nhanVien.id) {
-            const nhanVienId = chamCong.nhanVien.id;
-            status[nhanVienId] = chamCong.trangThaiChamCong?.tenTrangThai;
-            details[nhanVienId] = chamCong;
+    console.log(`Chấm công: Employee ${validNhanVienId}, Shift ${shift}, Ca ${caLamViecId}`);
 
-            if (chamCong.caLamViec && chamCong.caLamViec.id) {
-              caLamViecMap[nhanVienId] = chamCong.caLamViec.id.toString();
-            }
-          }
-        });
+    try {
+      const payload = {
+        nhanVienId: validNhanVienId,
+        trangThai: 'LÀM',
+        caLamViecId: parseInt(caLamViecId),
+      };
 
-        setCheckInStatus(status);
-        setChamCongDetails(details);
-        setSelectedCaLamViec(caLamViecMap);
-      } catch (error) {
-        console.error('Lỗi chi tiết:', error.response?.data);
-        const errorMsg = error.response?.data?.error || error.message || 'Lỗi khi chấm công';
-        toast.error(errorMsg);
-      }
+      const response = await axiosInstance.post('/chamcong/checkin', payload);
+      toast.success(response.data.message || 'Chấm công thành công');
+
+      // Refresh data after short delay
+      setTimeout(async () => {
+        await refreshChamCongData();
+      }, 500);
+    } catch (error) {
+      console.error('Lỗi chi tiết:', error.response?.data);
+      const errorMsg = error.response?.data?.error || error.message || 'Lỗi khi chấm công';
+      toast.error(errorMsg);
     }
   };
 
-  const closeModal = () => {
-    setIsLamModalOpen(false);
-    setIsNghiModalOpen(false);
-    setSelectedNhanVien(null);
-    setFormData(prev => ({ ...prev, caLamViecId: '', kyHieuChamCong: '', ghiChu: '' }));
+  // Render action buttons
+  const renderActionButtons = (nv, shift) => {
+    const key = `${nv.id}_${shift}`;
+    const currentStatus = checkInStatus[key];
+
+    const lamButtonClass = currentStatus === 'LÀM' ?
+      'btn btn-sm btn-success' :
+      'btn btn-sm btn-outline-success';
+
+    const nghiButtonClass = currentStatus === 'NGHỈ' ?
+      'btn btn-sm btn-danger' :
+      'btn btn-sm btn-outline-danger';
+
+    return (
+      <div className="d-flex gap-2">
+        <button
+          className={lamButtonClass}
+          onClick={() => handleChamCong(nv.id, 'LÀM', shift)}
+          disabled={!!currentStatus}
+          title={currentStatus === 'LÀM' ? 'Đã chấm công làm' : 'Chấm công làm'}
+        >
+          {currentStatus === 'LÀM' ? '✓ Làm' : 'Làm'}
+        </button>
+        <button
+          className={nghiButtonClass}
+          onClick={() => handleChamCong(nv.id, 'NGHỈ', shift)}
+          disabled={kyHieuChamCongs.length === 0 || !!currentStatus}
+          title={currentStatus === 'NGHỈ' ? 'Đã chấm công nghỉ' : 'Chấm công nghỉ'}
+        >
+          {currentStatus === 'NGHỈ' ? '✓ Nghỉ' : 'Nghỉ'}
+        </button>
+      </div>
+    );
   };
 
-  const showDetail = (nhanVienId) => {
-    const detail = chamCongDetails[nhanVienId];
+  const closeModal = () => {
+    setIsNghiModalOpen(false);
+    setSelectedNhanVien(null);
+    setSelectedShift(null);
+    setFormData((prev) => ({ ...prev, caLamViecId: '', kyHieuChamCong: '', ghiChu: '' }));
+  };
+
+  const showDetail = (nhanVienId, shift) => {
+    const detail = chamCongDetails[`${nhanVienId}_${shift}`];
     if (detail) {
       setSelectedDetail(detail);
       setShowDetailModal(true);
@@ -389,22 +545,20 @@ useEffect(() => {
     setSelectedDetail(null);
   };
 
-  const paginatedNhanViens = filteredNhanViens.slice(
-    currentPage * itemsPerPage,
-    (currentPage + 1) * itemsPerPage
-  );
+  const paginatedNhanViens = filteredNhanViens.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
 
-
-  const handleEdit = (nhanVienId) => {
-    const chamCongDetail = chamCongDetails[nhanVienId];
+  const handleEdit = (nhanVienId, shift) => {
+    const chamCongDetail = chamCongDetails[`${nhanVienId}_${shift}`];
     if (chamCongDetail) {
+      const currentCaLamViecId = selectedCaLamViec[`${nhanVienId}_${shift}`] || chamCongDetail.caLamViec?.id?.toString() || '';
       setEditingChamCong(chamCongDetail);
+      setSelectedShift(shift);
       setFormData({
         nhanVienId: chamCongDetail.nhanVien.id,
         trangThai: chamCongDetail.trangThaiChamCong?.tenTrangThai || 'LÀM',
-        caLamViecId: chamCongDetail.caLamViec?.id || '',
+        caLamViecId: chamCongDetail.trangThaiChamCong?.tenTrangThai === 'LÀM' ? currentCaLamViecId : '',
         kyHieuChamCong: chamCongDetail.kyHieuChamCong?.maKyHieu || '',
-        ghiChu: chamCongDetail.ghiChu || ''
+        ghiChu: chamCongDetail.ghiChu || '',
       });
       setIsEditModalOpen(true);
     }
@@ -413,7 +567,8 @@ useEffect(() => {
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setEditingChamCong(null);
-    setFormData(prev => ({ ...prev, caLamViecId: '', kyHieuChamCong: '', ghiChu: '' }));
+    setSelectedShift(null);
+    setFormData((prev) => ({ ...prev, caLamViecId: '', kyHieuChamCong: '', ghiChu: '' }));
   };
 
   const handleEditSubmit = async (e) => {
@@ -422,29 +577,19 @@ useEffect(() => {
       const payload = {
         trangThai: formData.trangThai,
         ...(formData.trangThai === 'LÀM' && {
-          caLamViecId: formData.caLamViecId
+          caLamViecId: parseInt(formData.caLamViecId),
         }),
         ...(formData.trangThai === 'NGHỈ' && {
           maKyHieuChamCong: formData.kyHieuChamCong,
-          ghiChu: formData.ghiChu
+          ghiChu: formData.ghiChu,
         }),
       };
 
       await axiosInstance.put(`/chamcong/${editingChamCong.id}/trangthai`, payload);
       toast.success('Cập nhật chấm công thành công');
 
-      // Reload data như trong handleSubmit
-      const params = {
-        page: currentPage,
-        size: itemsPerPage,
-        year: filterYear || undefined,
-        month: filterMonth || undefined,
-        day: filterDay || undefined,
-        khoaPhongId: filterKhoaPhongId || undefined,
-      };
-      const lichSuResponse = await axiosInstance.get('/chamcong/lichsu', { params });
-      // ... code reload data tương tự handleSubmit
-
+      // Refresh data
+      await refreshChamCongData();
       closeEditModal();
     } catch (error) {
       toast.error(`Lỗi khi cập nhật: ${error.response?.data?.error || error.message}`);
@@ -454,9 +599,10 @@ useEffect(() => {
   return (
     <div className="container-fluid p-4">
       <h1 className="h3 mb-4 text-primary d-flex align-items-center">
-        <i className="ri-time-line me-2"></i> Chấm công
+        <i className="ri-time-line me-2"></i> Chấm công (2 ca/ngày: Sáng & Chiều)
       </h1>
       <div className="card p-4 shadow-sm">
+        {/* Filters */}
         <div className="mb-3 row">
           <div className="col-md-3">
             <input
@@ -479,8 +625,10 @@ useEffect(() => {
               }}
             >
               <option value="">Chọn năm</option>
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
               ))}
             </select>
           </div>
@@ -496,8 +644,10 @@ useEffect(() => {
               disabled={!filterYear}
             >
               <option value="">Chọn tháng</option>
-              {months.map(month => (
-                <option key={month} value={month}>{month}</option>
+              {months.map((month) => (
+                <option key={month} value={month}>
+                  Tháng {month}
+                </option>
               ))}
             </select>
           </div>
@@ -512,12 +662,16 @@ useEffect(() => {
               disabled={!filterYear || !filterMonth}
             >
               <option value="">Chọn ngày</option>
-              {getDaysInMonth(filterYear, filterMonth).map(day => (
-                <option key={day} value={day}>{day}</option>
+              {getDaysInMonth(filterYear, filterMonth).map((day) => (
+                <option key={day} value={day}>
+                  Ngày {day}
+                </option>
               ))}
             </select>
           </div>
         </div>
+
+        {/* Department filter for admin/tonghop */}
         {(userRole === 'ADMIN' || userRole === 'NGUOITONGHOP') && (
           <div className="mb-3 row">
             <div className="col-md-3">
@@ -530,13 +684,17 @@ useEffect(() => {
                 }}
               >
                 <option value="">Tất cả khoa phòng</option>
-                {khoaPhongs.map(khoaPhong => (
-                  <option key={khoaPhong.id} value={khoaPhong.id}>{khoaPhong.tenKhoaPhong}</option>
+                {khoaPhongs.map((khoaPhong) => (
+                  <option key={khoaPhong.id} value={khoaPhong.id}>
+                    {khoaPhong.tenKhoaPhong}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
         )}
+
+        {/* Table */}
         {loading ? (
           <div className="text-center">
             <div className="spinner-border text-primary" role="status">
@@ -555,108 +713,114 @@ useEffect(() => {
                   <th scope="col" className="text-start">Ca làm việc</th>
                   <th scope="col" className="text-start">Chi tiết</th>
                   <th scope="col" className="text-start">Hành động</th>
-                  {userRole === 'ADMIN' && <th scope="col" className="text-start">Sửa</th>}
+                  {userRole === 'ADMIN' && (
+                    <th scope="col" className="text-start">Sửa</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {paginatedNhanViens.length > 0 ? (
-                  paginatedNhanViens.map((nv, index) => {
-                    const isCheckedIn = checkInStatus[nv.id];
-                    const chamCongDetail = chamCongDetails[nv.id];
-                    const lamClass = isCheckedIn === 'LÀM' ? 'btn-success' : 'btn-outline-primary';
-                    const nghiClass = isCheckedIn === 'NGHỈ' ? 'btn-danger' : 'btn-outline-primary';
+                  paginatedNhanViens.flatMap((nv, index) =>
+                    [1, 2].map((shift) => {
+                      const key = `${nv.id}_${shift}`;
+                      const currentStatus = checkInStatus[key];
+                      const chamCongDetail = chamCongDetails[key];
+                      const globalIndex = currentPage * itemsPerPage + index;
+                      const sttIndex = globalIndex + 1;
 
-                    return (
-                      <tr key={nv.id}>
-                        <td className="align-middle">{currentPage * itemsPerPage + index + 1}</td>
-                        <td className="align-middle">{nv.maNV || 'N/A'}</td>
-                        <td className="align-middle">{nv.hoTen}</td>
-                        <td className="align-middle">{nv.khoaPhong?.tenKhoaPhong || 'Chưa có'}</td>
-                        <td className="align-middle">
-                          <select
-                            className="form-select form-select-sm"
-                            value={selectedCaLamViec[nv.id] || ''}
-                            onChange={(e) => handleCaLamViecChange(nv.id, e.target.value)}
-                            disabled={isCheckedIn || caLamViecs.length === 0}
-                          >
-                            {caLamViecs.map((ca) => (
-                              <option key={ca.id} value={ca.id} selected={ca.kyHieuChamCong.maKyHieu === 'x'}>
-                                {ca.tenCaLamViec} ({ca.kyHieuChamCong.maKyHieu})
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="align-middle">
-                          {isCheckedIn ? (
-                            <button
-                              className="btn btn-sm btn-outline-info"
-                              onClick={() => showDetail(nv.id)}
-                              title="Xem chi tiết chấm công"
-                            >
-                              <i className="ri-eye-line"></i>
-                            </button>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                        <td className="align-middle">
-                          <button
-                            className={`btn btn-sm ${lamClass} me-2`}
-                            style={{ color: isCheckedIn === 'LÀM' ? '#ffffff' : '#000000' }}
-                            onClick={() => handleChamCong(nv.id, 'LÀM')}
-                            disabled={!!isCheckedIn}
-                          >
-                            Làm
-                          </button>
-                          <button
-                            className={`btn btn-sm ${nghiClass}`}
-                            style={{ color: isCheckedIn === 'NGHỈ' ? '#ffffff' : '' }}
-                            onClick={() => handleChamCong(nv.id, 'NGHỈ')}
-                            disabled={kyHieuChamCongs.length === 0 || !!isCheckedIn}
-                          >
-                            Nghỉ
-                          </button>
-                        </td>
-                        {userRole === 'ADMIN' && (
+                      return (
+                        <tr key={key} className={shift === 1 ? 'border-bottom' : 'border-bottom border-3'}>
                           <td className="align-middle">
-                            {isCheckedIn ? (
-                              <button
-                                className="btn btn-sm btn-outline-warning"
-                                onClick={() => handleEdit(nv.id)}
-                                title="Sửa chấm công"
+                            {shift === 1 ? sttIndex : ''}
+                          </td>
+                          <td className="align-middle">{shift === 1 ? (nv.maNV || 'N/A') : ''}</td>
+                          <td className="align-middle">{shift === 1 ? nv.hoTen : ''}</td>
+                          <td className="align-middle">{shift === 1 ? (nv.khoaPhong?.tenKhoaPhong || 'Chưa có') : ''}</td>
+                          <td className="align-middle">
+                            <div className="d-flex align-items-center">
+                              <span className="me-2 small text-muted fw-bold">
+                                {shift === 1 ? 'Sáng:' : 'Chiều:'}
+                              </span>
+                              <select
+                                className="form-select form-select-sm"
+                                value={selectedCaLamViec[key] || ''}
+                                onChange={(e) => handleCaLamViecChange(nv.id, e.target.value, shift)}
+                                disabled={currentStatus || caLamViecs.length === 0}
+                                style={{ minWidth: '180px' }}
                               >
-                                <i className="ri-edit-line"></i>
+                                <option value="">Chọn ca làm việc</option>
+                                {caLamViecs.map((ca) => (
+                                  <option key={ca.id} value={ca.id}>
+                                    {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                          <td className="align-middle">
+                            {currentStatus ? (
+                              <button
+                                className="btn btn-sm btn-outline-info"
+                                onClick={() => showDetail(nv.id, shift)}
+                                title="Xem chi tiết chấm công"
+                              >
+                                <i className="ri-eye-line"></i> Chi tiết
                               </button>
                             ) : (
                               <span className="text-muted">-</span>
                             )}
                           </td>
-                        )}
-
-
-
-                      </tr>
-                    );
-                  })
+                          <td className="align-middle">
+                            {renderActionButtons(nv, shift)}
+                          </td>
+                          {userRole === 'ADMIN' && (
+                            <td className="align-middle">
+                              {currentStatus ? (
+                                <button
+                                  className="btn btn-sm btn-outline-warning"
+                                  onClick={() => handleEdit(nv.id, shift)}
+                                  title="Sửa chấm công"
+                                >
+                                  <i className="ri-edit-line"></i>
+                                </button>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )
                 ) : (
                   <tr>
-                    <td colSpan="7" className="text-center">Không có nhân viên nào</td>
+                    <td colSpan={userRole === 'ADMIN' ? 8 : 7} className="text-center">
+                      Không có nhân viên nào
+                    </td>
                   </tr>
                 )}
               </tbody>
             </table>
+
+            {/* Pagination */}
             <nav>
               <ul className="pagination justify-content-center">
                 <li className={`page-item ${currentPage === 0 ? 'disabled' : ''}`}>
-                  <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Trước</button>
+                  <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>
+                    Trước
+                  </button>
                 </li>
-                {Array.from({ length: totalPages }, (_, i) => i).map(page => (
+                {Array.from({ length: totalPages }, (_, i) => i).map((page) => (
                   <li key={page} className={`page-item ${currentPage === page ? 'active' : ''}`}>
-                    <button className="page-link" onClick={() => setCurrentPage(page)}>{page + 1}</button>
+                    <button className="page-link" onClick={() => setCurrentPage(page)}>
+                      {page + 1}
+                    </button>
                   </li>
                 ))}
                 <li className={`page-item ${currentPage === totalPages - 1 ? 'disabled' : ''}`}>
-                  <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Sau</button>
+                  <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>
+                    Sau
+                  </button>
                 </li>
               </ul>
             </nav>
@@ -665,17 +829,27 @@ useEffect(() => {
       </div>
 
       {/* Modal chấm công nghỉ */}
-      <div className={`modal fade ${isNghiModalOpen ? 'show' : ''}`} style={{ display: isNghiModalOpen ? 'block' : 'none' }} tabIndex="-1" aria-labelledby="nghiModalLabel" aria-hidden={!isNghiModalOpen}>
+      <div
+        className={`modal fade ${isNghiModalOpen ? 'show' : ''}`}
+        style={{ display: isNghiModalOpen ? 'block' : 'none' }}
+        tabIndex="-1"
+        aria-labelledby="nghiModalLabel"
+        aria-hidden={!isNghiModalOpen}
+      >
         <div className="modal-dialog">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title" id="nghiModalLabel">Chấm công nghỉ cho {selectedNhanVien?.hoTen}</h5>
+              <h5 className="modal-title" id="nghiModalLabel">
+                Chấm công nghỉ cho {selectedNhanVien?.hoTen} - Ca {selectedShift === 1 ? 'Sáng' : 'Chiều'}
+              </h5>
               <button type="button" className="btn-close" onClick={closeModal}></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
                 <div className="mb-3">
-                  <label htmlFor="kyHieuChamCong" className="form-label">Ký hiệu chấm công</label>
+                  <label htmlFor="kyHieuChamCong" className="form-label">
+                    Ký hiệu chấm công
+                  </label>
                   <select
                     className="form-select"
                     id="kyHieuChamCong"
@@ -687,7 +861,7 @@ useEffect(() => {
                   >
                     <option value="">-- Chọn ký hiệu chấm công --</option>
                     {kyHieuChamCongs
-                      .filter(kh => !caLamViecs.some(ca => ca.kyHieuChamCong.maKyHieu === kh.maKyHieu))
+                      .filter((kh) => !caLamViecs.some((ca) => ca.kyHieuChamCong?.maKyHieu === kh.maKyHieu))
                       .map((kyHieu) => (
                         <option key={kyHieu.id} value={kyHieu.maKyHieu}>
                           {kyHieu.tenKyHieu} ({kyHieu.maKyHieu})
@@ -696,7 +870,9 @@ useEffect(() => {
                   </select>
                 </div>
                 <div className="mb-3">
-                  <label htmlFor="ghiChu" className="form-label">Ghi chú</label>
+                  <label htmlFor="ghiChu" className="form-label">
+                    Ghi chú
+                  </label>
                   <textarea
                     className="form-control"
                     id="ghiChu"
@@ -710,8 +886,16 @@ useEffect(() => {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={closeModal}>Hủy</button>
-                <button type="submit" className="btn btn-danger" disabled={kyHieuChamCongs.length === 0 || !formData.kyHieuChamCong || !formData.ghiChu}>Xác nhận</button>
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={kyHieuChamCongs.length === 0 || !formData.kyHieuChamCong || !formData.ghiChu}
+                >
+                  Xác nhận
+                </button>
               </div>
             </form>
           </div>
@@ -763,9 +947,19 @@ useEffect(() => {
                             <td>{selectedDetail.thoiGianCheckIn}</td>
                           </tr>
                           <tr>
+                            <td><strong>Ca:</strong></td>
+                            <td>
+                              <span className="badge bg-info">
+                                {determineShiftFromTime(selectedDetail.thoiGianCheckIn) === 1 ? 'Sáng' : 'Chiều'}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr>
                             <td><strong>Trạng thái:</strong></td>
                             <td>
-                              <span className={`badge ${selectedDetail.trangThaiChamCong?.tenTrangThai === 'LÀM' ? 'bg-success' : 'bg-danger'}`}>
+                              <span
+                                className={`badge ${selectedDetail.trangThaiChamCong?.tenTrangThai === 'LÀM' ? 'bg-success' : 'bg-danger'}`}
+                              >
                                 {selectedDetail.trangThaiChamCong?.tenTrangThai}
                               </span>
                             </td>
@@ -773,13 +967,17 @@ useEffect(() => {
                           {selectedDetail.caLamViec && (
                             <tr>
                               <td><strong>Ca làm việc:</strong></td>
-                              <td>{selectedDetail.caLamViec.tenCaLamViec} ({selectedDetail.caLamViec.kyHieuChamCong?.maKyHieu})</td>
+                              <td>
+                                {selectedDetail.caLamViec.tenCaLamViec} ({selectedDetail.caLamViec.kyHieuChamCong?.maKyHieu})
+                              </td>
                             </tr>
                           )}
                           {selectedDetail.kyHieuChamCong && (
                             <tr>
                               <td><strong>Ký hiệu chấm công:</strong></td>
-                              <td>{selectedDetail.kyHieuChamCong?.tenKyHieu} ({selectedDetail.kyHieuChamCong?.maKyHieu})</td>
+                              <td>
+                                {selectedDetail.kyHieuChamCong?.tenKyHieu} ({selectedDetail.kyHieuChamCong?.maKyHieu})
+                              </td>
                             </tr>
                           )}
                         </tbody>
@@ -797,15 +995,15 @@ useEffect(() => {
                 )}
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={closeDetailModal}>Đóng</button>
+                <button type="button" className="btn btn-secondary" onClick={closeDetailModal}>
+                  Đóng
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
       {showDetailModal && <div className="modal-backdrop fade show"></div>}
-
-
 
       {/* Modal sửa chấm công */}
       {isEditModalOpen && (
@@ -814,20 +1012,25 @@ useEffect(() => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">
-                  Sửa chấm công - {editingChamCong?.nhanVien?.hoTen}
+                  Sửa chấm công - {editingChamCong?.nhanVien?.hoTen} - Ca {selectedShift === 1 ? 'Sáng' : 'Chiều'}
                 </h5>
                 <button type="button" className="btn-close" onClick={closeEditModal}></button>
               </div>
               <form onSubmit={handleEditSubmit}>
                 <div className="modal-body">
                   <div className="mb-3">
+                    <label className="form-label">Thời gian gốc</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editingChamCong?.thoiGianCheckIn || ''}
+                      disabled
+                    />
+                  </div>
+
+                  <div className="mb-3">
                     <label className="form-label">Trạng thái</label>
-                    <select
-                      className="form-select"
-                      name="trangThai"
-                      value={formData.trangThai}
-                      onChange={handleChange}
-                    >
+                    <select className="form-select" name="trangThai" value={formData.trangThai} onChange={handleChange}>
                       <option value="LÀM">Làm</option>
                       <option value="NGHỈ">Nghỉ</option>
                     </select>
@@ -839,13 +1042,14 @@ useEffect(() => {
                       <select
                         className="form-select"
                         name="caLamViecId"
-                        value={formData.caLamViecId}
+                        value={formData.caLamViecId || ''}
                         onChange={handleChange}
                         required
                       >
+                        <option value="">Chọn ca làm việc</option>
                         {caLamViecs.map((ca) => (
-                          <option key={ca.id} value={ca.id} selected={ca.kyHieuChamCong.maKyHieu === 'x'}>
-                            {ca.tenCaLamViec} ({ca.kyHieuChamCong.maKyHieu})
+                          <option key={ca.id} value={ca.id}>
+                            {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
                           </option>
                         ))}
                       </select>
@@ -865,7 +1069,7 @@ useEffect(() => {
                         >
                           <option value="">-- Chọn ký hiệu --</option>
                           {kyHieuChamCongs
-                            .filter(kh => !caLamViecs.some(ca => ca.kyHieuChamCong.maKyHieu === kh.maKyHieu))
+                            .filter((kh) => !caLamViecs.some((ca) => ca.kyHieuChamCong?.maKyHieu === kh.maKyHieu))
                             .map((kyHieu) => (
                               <option key={kyHieu.id} value={kyHieu.maKyHieu}>
                                 {kyHieu.tenKyHieu} ({kyHieu.maKyHieu})
@@ -900,9 +1104,8 @@ useEffect(() => {
         </div>
       )}
       {isEditModalOpen && <div className="modal-backdrop fade show"></div>}
-
     </div>
   );
 }
 
-export default ChamCong;  
+export default ChamCong;

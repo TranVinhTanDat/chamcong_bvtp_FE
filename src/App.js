@@ -14,6 +14,8 @@ import CaiDatCaLamViec from './components/pages/CaiDatCaLamViec';
 
 
 import './components/assets/style/variables.css';
+import './components/assets/style/ChamCong.css';
+
 import { ToastContainer } from 'react-toastify';
 import './App.css';
 
