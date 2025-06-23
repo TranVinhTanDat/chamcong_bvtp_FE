@@ -82,6 +82,7 @@ function ChamCong() {
     return `${dayStr}-${monthStr}-${year}`;
   };
 
+
   // Determine shift based on time for historical data analysis
   const determineShiftFromTime = (thoiGianCheckIn) => {
     if (!thoiGianCheckIn) return 1;
@@ -382,9 +383,19 @@ function ChamCong() {
         return;
       }
 
+      // THÊM MỚI: Tạo filterDate từ các filter hiện tại (chỉ khi có đủ thông tin)
+      const currentFilterDate = (filterYear && filterMonth && filterDay)
+        ? formatDateForAPI(filterYear, filterMonth, filterDay)
+        : null;
+
+      console.log('Submitting with filterDate:', currentFilterDate, {
+        filterYear, filterMonth, filterDay
+      });
+
       const payload = {
         nhanVienId: nhanVienId,
         trangThai: formData.trangThai,
+        filterDate: currentFilterDate, // THÊM MỚI
         ...(formData.trangThai === 'LÀM' && {
           caLamViecId: parseInt(formData.caLamViecId),
         }),
@@ -470,10 +481,20 @@ function ChamCong() {
     console.log(`Chấm công: Employee ${validNhanVienId}, Shift ${shift}, Ca ${caLamViecId}`);
 
     try {
+      // THÊM MỚI: Tạo filterDate từ các filter hiện tại (chỉ khi có đủ thông tin)
+      const currentFilterDate = (filterYear && filterMonth && filterDay)
+        ? formatDateForAPI(filterYear, filterMonth, filterDay)
+        : null;
+
+      console.log('Checking in with filterDate:', currentFilterDate, {
+        filterYear, filterMonth, filterDay
+      });
+
       const payload = {
         nhanVienId: validNhanVienId,
         trangThai: 'LÀM',
         caLamViecId: parseInt(caLamViecId),
+        filterDate: currentFilterDate, // THÊM MỚI
       };
 
       const response = await axiosInstance.post('/chamcong/checkin', payload);
