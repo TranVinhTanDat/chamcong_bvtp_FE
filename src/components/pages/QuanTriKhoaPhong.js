@@ -7,13 +7,43 @@ function QuanTriKhoaPhong() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize] = useState(5); // Số mục trên mỗi trang
+  const [pageSize] = useState(5);
   const [totalPages, setTotalPages] = useState(0);
   const [newKhoaPhong, setNewKhoaPhong] = useState({ tenKhoaPhong: '', maKhoaPhong: '' });
   const [editKhoaPhong, setEditKhoaPhong] = useState(null);
   const userRole = localStorage.getItem('role');
 
-  // Fetch khoa phòng khi role, trang, hoặc từ khóa tìm kiếm thay đổi
+  // Validation functions
+  const validateMaKhoaPhong = (maKP) => {
+    if (!maKP || maKP.trim() === '') return 'Mã khoa/phòng không được để trống';
+    const normalizedMaKP = maKP.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]+$/.test(normalizedMaKP)) return 'Mã khoa/phòng chỉ được chứa chữ in hoa, số, _, -';
+    if (normalizedMaKP.length < 2 || normalizedMaKP.length > 50) return 'Mã khoa/phòng phải có 2-50 ký tự';
+    return true;
+  };
+
+  const validateTenKhoaPhong = (tenKP) => {
+    if (!tenKP || tenKP.trim() === '') return 'Tên khoa/phòng không được để trống';
+    if (tenKP.trim().length < 3) return 'Tên khoa/phòng phải có ít nhất 3 ký tự';
+    if (tenKP.trim().length > 200) return 'Tên khoa/phòng không được quá 200 ký tự';
+    return true;
+  };
+
+  const validateForm = (data) => {
+    const tenValidation = validateTenKhoaPhong(data.tenKhoaPhong);
+    const maValidation = validateMaKhoaPhong(data.maKhoaPhong);
+    
+    if (tenValidation !== true) {
+      toast.error(tenValidation);
+      return false;
+    }
+    if (maValidation !== true) {
+      toast.error(maValidation);
+      return false;
+    }
+    return true;
+  };
+
   useEffect(() => {
     if (userRole !== 'ADMIN') {
       toast.error('Bạn không có quyền truy cập trang này!');
@@ -32,7 +62,7 @@ function QuanTriKhoaPhong() {
       setTotalPages(response.data.totalPages || 0);
     } catch (error) {
       console.error('Error fetching khoa phongs:', error);
-      toast.error(`Lỗi khi tải danh sách: ${error.response?.data?.message || error.message || 'Kiểm tra kết nối'}`);
+      toast.error(`Lỗi khi tải danh sách: ${error.response?.data || error.message || 'Kiểm tra kết nối'}`);
     } finally {
       setLoading(false);
     }
@@ -40,17 +70,26 @@ function QuanTriKhoaPhong() {
 
   const handleAddKhoaPhong = async (e) => {
     e.preventDefault();
-    if (!newKhoaPhong.tenKhoaPhong.trim() || !newKhoaPhong.maKhoaPhong.trim()) {
-      toast.error('Vui lòng điền đầy đủ thông tin!');
-      return;
-    }
+    
+    if (!validateForm(newKhoaPhong)) return;
+
     try {
-      await axiosInstance.post('/khoa-phong', newKhoaPhong);
-      toast.success('Thêm khoa phòng thành công!');
+      const payload = {
+        tenKhoaPhong: newKhoaPhong.tenKhoaPhong.trim(),
+        maKhoaPhong: newKhoaPhong.maKhoaPhong.trim().toUpperCase(),
+      };
+      
+      await axiosInstance.post('/khoa-phong', payload);
+      toast.success('Thêm khoa/phòng thành công!');
       setNewKhoaPhong({ tenKhoaPhong: '', maKhoaPhong: '' });
       fetchKhoaPhongs();
     } catch (error) {
-      toast.error(`Lỗi khi thêm: ${error.response?.data?.message || error.message}`);
+      const errorMessage = error.response?.data;
+      if (errorMessage) {
+        toast.error(errorMessage);
+      } else {
+        toast.error('Lỗi khi thêm khoa/phòng');
+      }
     }
   };
 
@@ -60,28 +99,37 @@ function QuanTriKhoaPhong() {
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
-    if (!editKhoaPhong.tenKhoaPhong.trim() || !editKhoaPhong.maKhoaPhong.trim()) {
-      toast.error('Vui lòng điền đầy đủ thông tin!');
-      return;
-    }
+    
+    if (!validateForm(editKhoaPhong)) return;
+
     try {
-      await axiosInstance.put(`/khoa-phong/${editKhoaPhong.id}`, editKhoaPhong);
-      toast.success('Cập nhật khoa phòng thành công!');
+      const payload = {
+        tenKhoaPhong: editKhoaPhong.tenKhoaPhong.trim(),
+        maKhoaPhong: editKhoaPhong.maKhoaPhong.trim().toUpperCase(),
+      };
+      
+      await axiosInstance.put(`/khoa-phong/${editKhoaPhong.id}`, payload);
+      toast.success('Cập nhật khoa/phòng thành công!');
       setEditKhoaPhong(null);
       fetchKhoaPhongs();
     } catch (error) {
-      toast.error(`Lỗi khi cập nhật: ${error.response?.data?.message || error.message}`);
+      const errorMessage = error.response?.data;
+      if (errorMessage) {
+        toast.error(errorMessage);
+      } else {
+        toast.error('Lỗi khi cập nhật khoa/phòng');
+      }
     }
   };
 
   const handleDeleteKhoaPhong = async (id) => {
-    if (window.confirm('Bạn có chắc muốn xóa khoa phòng này?')) {
+    if (window.confirm('Bạn có chắc muốn xóa khoa/phòng này?')) {
       try {
         await axiosInstance.delete(`/khoa-phong/${id}`);
-        toast.success('Xóa khoa phòng thành công!');
+        toast.success('Xóa khoa/phòng thành công!');
         fetchKhoaPhongs();
       } catch (error) {
-        toast.error(`Lỗi khi xóa: ${error.response?.data?.message || error.message}`);
+        toast.error(error.response?.data || 'Lỗi khi xóa khoa/phòng');
       }
     }
   };
@@ -114,16 +162,19 @@ function QuanTriKhoaPhong() {
                 value={newKhoaPhong.tenKhoaPhong}
                 onChange={(e) => setNewKhoaPhong({ ...newKhoaPhong, tenKhoaPhong: e.target.value })}
                 required
+                maxLength={200}
               />
             </div>
             <div className="col-md-4">
               <input
                 type="text"
                 className="form-control"
-                placeholder="Mã khoa phòng"
+                placeholder="Mã khoa phòng (VD: NOI_TH, NGOAI-01)"
                 value={newKhoaPhong.maKhoaPhong}
-                onChange={(e) => setNewKhoaPhong({ ...newKhoaPhong, maKhoaPhong: e.target.value })}
+                onChange={(e) => setNewKhoaPhong({ ...newKhoaPhong, maKhoaPhong: e.target.value.toUpperCase() })}
                 required
+                maxLength={50}
+                style={{ fontFamily: 'monospace' }}
               />
             </div>
             <div className="col-md-4">
@@ -147,7 +198,7 @@ function QuanTriKhoaPhong() {
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
-                  setCurrentPage(0); // Reset về trang đầu khi tìm kiếm
+                  setCurrentPage(0);
                 }}
               />
             </div>
@@ -186,6 +237,7 @@ function QuanTriKhoaPhong() {
                             className="form-control"
                             value={editKhoaPhong.tenKhoaPhong}
                             onChange={(e) => setEditKhoaPhong({ ...editKhoaPhong, tenKhoaPhong: e.target.value })}
+                            maxLength={200}
                           />
                         ) : (
                           kp.tenKhoaPhong
@@ -197,37 +249,52 @@ function QuanTriKhoaPhong() {
                             type="text"
                             className="form-control"
                             value={editKhoaPhong.maKhoaPhong}
-                            onChange={(e) => setEditKhoaPhong({ ...editKhoaPhong, maKhoaPhong: e.target.value })}
+                            onChange={(e) => setEditKhoaPhong({ ...editKhoaPhong, maKhoaPhong: e.target.value.toUpperCase() })}
+                            maxLength={50}
+                            style={{ fontFamily: 'monospace' }}
                           />
                         ) : (
-                          kp.maKhoaPhong
+                          <span className="badge bg-primary" style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                            {kp.maKhoaPhong}
+                          </span>
                         )}
                       </td>
                       <td className="text-center align-middle py-3">
                         {editKhoaPhong?.id === kp.id ? (
-                          <button
-                            className="btn btn-success btn-sm me-2"
-                            onClick={handleSaveEdit}
-                            disabled={loading}
-                          >
-                            Lưu
-                          </button>
+                          <>
+                            <button
+                              className="btn btn-success btn-sm me-2"
+                              onClick={handleSaveEdit}
+                              disabled={loading}
+                            >
+                              Lưu
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setEditKhoaPhong(null)}
+                              disabled={loading}
+                            >
+                              Hủy
+                            </button>
+                          </>
                         ) : (
-                          <button
-                            className="btn btn-warning btn-sm me-2"
-                            onClick={() => handleEditKhoaPhong(kp)}
-                            disabled={loading}
-                          >
-                            Sửa
-                          </button>
+                          <>
+                            <button
+                              className="btn btn-warning btn-sm me-2"
+                              onClick={() => handleEditKhoaPhong(kp)}
+                              disabled={loading}
+                            >
+                              Sửa
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleDeleteKhoaPhong(kp.id)}
+                              disabled={loading}
+                            >
+                              Xóa
+                            </button>
+                          </>
                         )}
-                        <button
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleDeleteKhoaPhong(kp.id)}
-                          disabled={loading}
-                        >
-                          Xóa
-                        </button>
                       </td>
                     </tr>
                   ))}

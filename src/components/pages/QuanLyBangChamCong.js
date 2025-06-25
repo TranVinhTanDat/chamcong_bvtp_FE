@@ -1803,11 +1803,13 @@ function QuanLyBangChamCong() {
                   <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
                     <tr>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '12px' }}>STT</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Mã NV</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '180px', fontSize: '12px' }}>Họ và Tên</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '120px', fontSize: '12px' }}>Ngày tháng năm sinh</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Khoa/phòng</th>
                       <th colSpan={daysInMonth} className="text-center py-2" style={{ fontSize: '12px', color: '#ff0000' }}>NGÀY TRONG THÁNG</th>
                     </tr>
+
                     <tr>
                       {Array.from({ length: daysInMonth }, (_, i) => (
                         <th key={i + 1} className="text-center py-2" style={{
@@ -1845,6 +1847,9 @@ function QuanLyBangChamCong() {
                           <td className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
                             {index + 1}
                           </td>
+                          <td className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
+                            {nv.maNV || '-'}
+                          </td>
                           <td className="align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>
                             {nv.hoTen}
                           </td>
@@ -1854,6 +1859,8 @@ function QuanLyBangChamCong() {
                           <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
                             {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
                           </td>
+
+
                           {Array.from({ length: daysInMonth }, (_, day) => {
                             const shift1Symbol = employeeData[1][day + 1] || '-';
                             const shift2Symbol = employeeData[2][day + 1] || '-';
@@ -1911,10 +1918,13 @@ function QuanLyBangChamCong() {
                   <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
                     <tr>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '12px' }}>STT</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Mã NV</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '180px', fontSize: '12px' }}>Họ và Tên</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '120px', fontSize: '12px' }}>Ngày tháng năm sinh</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Khoa/phòng</th>
                       <th colSpan={daysInMonth} className="text-center py-2" style={{ fontSize: '12px', color: '#ff0000' }}>NGÀY TRONG THÁNG</th>
+
+
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ffa500' }}>Số ngày làm việc (A)</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '80px', fontSize: '10px', backgroundColor: '#ff6b6b' }}>Những ngày nghỉ không làm việc (B)</th>
                       <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '10px', backgroundColor: '#51cf66' }}>Phép(C)</th>
@@ -1968,6 +1978,9 @@ function QuanLyBangChamCong() {
                               <td rowSpan="2" className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
                                 {index + 1}
                               </td>
+                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
+                                {nv.maNV || '-'}
+                              </td>
                               <td rowSpan="2" className="align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
                                 {nv.hoTen}
                               </td>
@@ -1977,6 +1990,8 @@ function QuanLyBangChamCong() {
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
                                 {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
                               </td>
+
+
                               {Array.from({ length: daysInMonth }, (_, day) => {
                                 const shift1Symbol = employeeData[1][day + 1] || '-';
                                 const isWeekendDay = isWeekend(day + 1);

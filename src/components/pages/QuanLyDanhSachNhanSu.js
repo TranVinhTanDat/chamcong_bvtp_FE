@@ -76,33 +76,98 @@ function QuanLyDanhSachNhanSu() {
     fetchKhoaPhongsAndChucVus();
   }, [fetchNhanViens]);
 
-  // Xử lý thêm/sửa nhân viên
-  const handleSaveNhanVien = async () => {
-    if (!currentNhanVien.hoTen || !currentNhanVien.email || !currentNhanVien.khoaPhong.id) {
-      toast.error('Vui lòng điền đầy đủ họ tên, email và khoa/phòng');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(currentNhanVien.email)) {
-      toast.error('Email không hợp lệ');
-      return;
-    }
-
+  // CẬP NHẬT: Hàm validate và prepare payload
+  const preparePayload = () => {
     // Format ngày sinh thành chuỗi dd/MM/yyyy
     const formattedNgaySinh = currentNhanVien.ngayThangNamSinh
       ? format(currentNhanVien.ngayThangNamSinh, 'dd/MM/yyyy')
       : null;
 
-    const payload = {
-      hoTen: currentNhanVien.hoTen,
-      email: currentNhanVien.email,
-      maNV: currentNhanVien.maNV || null,
+    // CẬP NHẬT: Xử lý mã NV - nếu rỗng hoặc chỉ có khoảng trắng thì gửi null
+    const processedMaNV = currentNhanVien.maNV && currentNhanVien.maNV.trim() 
+      ? currentNhanVien.maNV.trim() 
+      : null;
+
+    // CẬP NHẬT: Xử lý số điện thoại - nếu rỗng hoặc chỉ có khoảng trắng thì gửi null
+    const processedSDT = currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim() 
+      ? currentNhanVien.soDienThoai.trim() 
+      : null;
+
+    return {
+      hoTen: currentNhanVien.hoTen.trim(),
+      email: currentNhanVien.email.trim(),
+      maNV: processedMaNV, // Có thể là null
       ngayThangNamSinh: formattedNgaySinh,
-      soDienThoai: currentNhanVien.soDienThoai || null,
+      soDienThoai: processedSDT, // Có thể là null
       khoaPhong: { id: currentNhanVien.khoaPhong.id },
       chucVu: currentNhanVien.chucVu.id ? { id: currentNhanVien.chucVu.id } : null,
     };
+  };
+
+  // CẬP NHẬT: Validation đơn giản hơn
+  const validateForm = () => {
+    // Kiểm tra các trường bắt buộc
+    if (!currentNhanVien.hoTen || !currentNhanVien.hoTen.trim()) {
+      toast.error('Vui lòng nhập họ tên');
+      return false;
+    }
+
+    if (!currentNhanVien.email || !currentNhanVien.email.trim()) {
+      toast.error('Vui lòng nhập email');
+      return false;
+    }
+
+    if (!currentNhanVien.khoaPhong.id) {
+      toast.error('Vui lòng chọn khoa/phòng');
+      return false;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(currentNhanVien.email.trim())) {
+      toast.error('Email không hợp lệ');
+      return false;
+    }
+
+    // CẬP NHẬT: Validate mã NV chỉ khi có nhập
+    if (currentNhanVien.maNV && currentNhanVien.maNV.trim()) {
+      const maNV = currentNhanVien.maNV.trim();
+      if (maNV.length < 2) {
+        toast.error('Mã nhân viên phải có ít nhất 2 ký tự');
+        return false;
+      }
+      if (maNV.length > 50) {
+        toast.error('Mã nhân viên không được quá 50 ký tự');
+        return false;
+      }
+    }
+
+    // CẬP NHẬT: Validate số điện thoại chỉ khi có nhập
+    if (currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim()) {
+      const sdt = currentNhanVien.soDienThoai.trim();
+      const phoneRegex = /^[0-9+\-\s()]+$/;
+      if (!phoneRegex.test(sdt)) {
+        toast.error('Số điện thoại không hợp lệ');
+        return false;
+      }
+      if (sdt.length < 10 || sdt.length > 15) {
+        toast.error('Số điện thoại phải có từ 10-15 ký tự');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // CẬP NHẬT: Xử lý thêm/sửa nhân viên
+  const handleSaveNhanVien = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    const payload = preparePayload();
+    
+    console.log('Payload gửi đi:', payload); // Debug log
 
     setIsLoading(true);
     try {
@@ -140,7 +205,7 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
-  // Xử lý mở modal thêm/sửa
+  // CẬP NHẬT: Xử lý mở modal thêm/sửa
   const openModal = (nhanVien = null) => {
     setIsEdit(!!nhanVien);
     if (nhanVien) {
@@ -153,15 +218,18 @@ function QuanLyDanhSachNhanSu() {
         ngayThangNamSinh: parsedDate,
         khoaPhong: { id: nhanVien.khoaPhong?.id || '' },
         chucVu: { id: nhanVien.chucVu?.id || '' },
+        // CẬP NHẬT: Đảm bảo maNV và soDienThoai không bị undefined
+        maNV: nhanVien.maNV || '',
+        soDienThoai: nhanVien.soDienThoai || '',
       });
     } else {
       setCurrentNhanVien({
         id: null,
         hoTen: '',
         email: '',
-        maNV: '',
+        maNV: '', // CẬP NHẬT: Bắt đầu với string rỗng
         ngayThangNamSinh: null,
-        soDienThoai: '',
+        soDienThoai: '', // CẬP NHẬT: Bắt đầu với string rỗng
         khoaPhong: { id: role === 'NGUOICHAMCONG' ? khoaPhongId : '' },
         chucVu: { id: '' },
       });
@@ -307,16 +375,24 @@ function QuanLyDanhSachNhanSu() {
                 disabled={isLoading}
               />
             </Form.Group>
+            {/* CẬP NHẬT: Mã NV có thể để trống */}
             <Form.Group className="mb-3">
-              <Form.Label>Mã NV</Form.Label>
+              <Form.Label>
+                Mã NV 
+                <small className="text-muted ms-2">(Tùy chọn - có thể để trống)</small>
+              </Form.Label>
               <Form.Control
                 type="text"
                 name="maNV"
                 value={currentNhanVien.maNV}
                 onChange={handleChange}
-                placeholder="Nhập mã nhân viên"
+                placeholder="Nhập mã nhân viên (hoặc để trống)"
                 disabled={isLoading}
+                maxLength={50}
               />
+              <Form.Text className="text-muted">
+                Nếu không nhập, hệ thống sẽ để trống mã nhân viên
+              </Form.Text>
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Ngày Sinh</Form.Label>
@@ -330,17 +406,23 @@ function QuanLyDanhSachNhanSu() {
                 showYearDropdown
                 yearDropdownItemNumber={100}
                 scrollableYearDropdown
+                maxDate={new Date()} // Không cho chọn ngày tương lai
               />
             </Form.Group>
+            {/* CẬP NHẬT: Số điện thoại có thể để trống */}
             <Form.Group className="mb-3">
-              <Form.Label>Số Điện Thoại</Form.Label>
+              <Form.Label>
+                Số Điện Thoại
+                <small className="text-muted ms-2">(Tùy chọn)</small>
+              </Form.Label>
               <Form.Control
                 type="text"
                 name="soDienThoai"
                 value={currentNhanVien.soDienThoai}
                 onChange={handleChange}
-                placeholder="Nhập số điện thoại"
+                placeholder="Nhập số điện thoại (hoặc để trống)"
                 disabled={isLoading}
+                maxLength={15}
               />
             </Form.Group>
             <Form.Group className="mb-3">
@@ -369,7 +451,10 @@ function QuanLyDanhSachNhanSu() {
               )}
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Chức Vụ</Form.Label>
+              <Form.Label>
+                Chức Vụ
+                <small className="text-muted ms-2">(Tùy chọn)</small>
+              </Form.Label>
               <Form.Select
                 name="chucVuId"
                 value={currentNhanVien.chucVu.id}
@@ -399,4 +484,4 @@ function QuanLyDanhSachNhanSu() {
   );
 }
 
-export default QuanLyDanhSachNhanSu;
+export default QuanLyDanhSachNhanSu;  
