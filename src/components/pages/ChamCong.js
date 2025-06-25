@@ -545,7 +545,7 @@ function ChamCong() {
     const detail = chamCongDetails[`${nhanVienId}_${shift}`];
     if (detail) {
       // Thêm thông tin shift vào detail để hiển thị đúng trong modal
-      setSelectedDetail({...detail, displayShift: shift});
+      setSelectedDetail({ ...detail, displayShift: shift });
       setShowDetailModal(true);
     }
   };
@@ -900,7 +900,7 @@ function ChamCong() {
                 </div>
                 <div className="mb-3">
                   <label htmlFor="ghiChu" className="form-label">
-                    Ghi chú
+                    Ghi chú <span className="text-muted">(tùy chọn)</span>
                   </label>
                   <textarea
                     className="form-control"
@@ -908,8 +908,7 @@ function ChamCong() {
                     name="ghiChu"
                     value={formData.ghiChu}
                     onChange={handleChange}
-                    placeholder="Nhập ghi chú"
-                    required
+                    placeholder="Nhập ghi chú (tùy chọn)"
                     disabled={kyHieuChamCongs.length === 0}
                   ></textarea>
                 </div>
@@ -921,7 +920,7 @@ function ChamCong() {
                 <button
                   type="submit"
                   className="btn btn-danger"
-                  disabled={caLamViecs.length === 0 || kyHieuChamCongs.length === 0 || !formData.caLamViecId || !formData.kyHieuChamCong || !formData.ghiChu}
+                  disabled={caLamViecs.length === 0 || kyHieuChamCongs.length === 0 || !formData.caLamViecId || !formData.kyHieuChamCong}
                 >
                   Xác nhận
                 </button>
@@ -1105,13 +1104,13 @@ function ChamCong() {
                         </select>
                       </div>
                       <div className="mb-3">
-                        <label className="form-label">Ghi chú</label>
+                        <label className="form-label">Ghi chú <span className="text-muted">(tùy chọn)</span></label>
                         <textarea
                           className="form-control"
                           name="ghiChu"
                           value={formData.ghiChu}
                           onChange={handleChange}
-                          required
+                          placeholder="Nhập ghi chú (tùy chọn)"
                         ></textarea>
                       </div>
                     </>

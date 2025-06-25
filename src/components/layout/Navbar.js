@@ -1,31 +1,80 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
+import ChangePasswordModal from '../modals/ChangePasswordModal';
+import UserProfileModal from '../modals/UserProfileModal';
 
 function Navbar() {
   const navigate = useNavigate();
-  const [tenKhoaPhong, setTenKhoaPhong] = useState('');
-  const role = localStorage.getItem('role');
-  const khoaPhongId = localStorage.getItem('khoaPhongId');
+  const [userInfo, setUserInfo] = useState({
+    tenDangNhap: '',
+    tenKhoaPhong: '',
+    role: ''
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  
+  // Lấy từ localStorage làm fallback
+  const fallbackRole = localStorage.getItem('role');
+  const fallbackKhoaPhongId = localStorage.getItem('khoaPhongId');
+  const fallbackTenDangNhap = localStorage.getItem('tenDangNhap');
 
   useEffect(() => {
-    // Chỉ fetch tên khoa phòng nếu không phải ADMIN và có khoaPhongId
-    if (role !== 'ADMIN' && khoaPhongId) {
-      fetchTenKhoaPhong();
-    }
-  }, [role, khoaPhongId]);
+    // Gọi API lấy thông tin user hiện tại
+    fetchCurrentUserInfo();
+  }, []);
 
-  const fetchTenKhoaPhong = async () => {
+  const fetchCurrentUserInfo = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.get('/user/current');
+      const userData = response.data;
+      
+      setUserInfo({
+        tenDangNhap: userData.tenDangNhap,
+        tenKhoaPhong: userData.tenKhoaPhong,
+        role: userData.role
+      });
+      
+      // Cập nhật localStorage với thông tin mới nhất
+      localStorage.setItem('tenDangNhap', userData.tenDangNhap);
+      localStorage.setItem('tenKhoaPhong', userData.tenKhoaPhong);
+      localStorage.setItem('role', userData.role);
+      
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      
+      // Fallback sử dụng dữ liệu từ localStorage
+      setUserInfo({
+        tenDangNhap: fallbackTenDangNhap || '',
+        tenKhoaPhong: localStorage.getItem('tenKhoaPhong') || '',
+        role: fallbackRole || ''
+      });
+      
+      // Nếu có khoaPhongId thì fetch tên khoa phòng như cũ (fallback)
+      if (fallbackRole !== 'ADMIN' && fallbackKhoaPhongId && !localStorage.getItem('tenKhoaPhong')) {
+        fetchTenKhoaPhongFallback();
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function fallback để fetch tên khoa phòng nếu API /user/current lỗi
+  const fetchTenKhoaPhongFallback = async () => {
     try {
       const response = await axiosInstance.get('/khoa-phong');
-      const khoaPhong = response.data.find(kp => kp.id === parseInt(khoaPhongId));
+      const khoaPhong = response.data.find(kp => kp.id === parseInt(fallbackKhoaPhongId));
       if (khoaPhong) {
-        setTenKhoaPhong(khoaPhong.tenKhoaPhong);
-        // Lưu vào localStorage để sử dụng sau này
+        setUserInfo(prev => ({
+          ...prev,
+          tenKhoaPhong: khoaPhong.tenKhoaPhong
+        }));
         localStorage.setItem('tenKhoaPhong', khoaPhong.tenKhoaPhong);
       }
     } catch (error) {
-      console.error('Error fetching khoa phong:', error);
+      console.error('Error fetching khoa phong fallback:', error);
     }
   };
 
@@ -41,7 +90,8 @@ function Navbar() {
   };
 
   const displayRole = () => {
-    switch(role) {
+    const currentRole = userInfo.role || fallbackRole;
+    switch(currentRole) {
       case 'ADMIN':
         return 'Quản trị viên';
       case 'NGUOICHAMCONG':
@@ -51,6 +101,20 @@ function Navbar() {
       default:
         return 'Người dùng';
     }
+  };
+
+  const getCurrentRole = () => {
+    return userInfo.role || fallbackRole;
+  };
+
+  const getDisplayName = () => {
+    if (isLoading) return 'Đang tải...';
+    return userInfo.tenDangNhap || fallbackTenDangNhap || 'Người dùng';
+  };
+
+  const getKhoaPhongName = () => {
+    if (isLoading) return 'Đang tải...';
+    return userInfo.tenKhoaPhong || localStorage.getItem('tenKhoaPhong') || 'Đang tải...';
   };
 
   return (
@@ -73,28 +137,55 @@ function Navbar() {
               className="btn btn-link text-decoration-none d-flex align-items-center"
               type="button"
               data-bs-toggle="dropdown"
+              aria-expanded="false"
             >
-              <div className="d-none d-sm-block text-start">
-                <small className="text-muted d-block">{displayRole()}</small>
+              <div className="d-none d-sm-block text-start me-2">
+                {/* Hiển thị username */}
+                <div className="fw-medium text-dark" style={{ fontSize: '0.95rem' }}>
+                  {getDisplayName()}
+                </div>
+                
+                {/* Hiển thị role */}
+                <small className="text-muted d-block" style={{ fontSize: '0.8rem' }}>
+                  {displayRole()}
+                </small>
+                
                 {/* Chỉ hiển thị khoa phòng nếu không phải ADMIN */}
-                {role !== 'ADMIN' && (
-                  <small className="text-muted">{tenKhoaPhong || localStorage.getItem('tenKhoaPhong') || 'Đang tải...'}</small>
+                {getCurrentRole() !== 'ADMIN' && (
+                  <small className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    {getKhoaPhongName()}
+                  </small>
                 )}
               </div>
-              <i className="ri-arrow-down-s-line text-muted ms-2"></i>
+              
+              {/* Avatar hoặc icon user */}
+              <div className="d-flex align-items-center">
+                <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" 
+                     style={{ width: '32px', height: '32px', fontSize: '0.8rem' }}>
+                  {getDisplayName().charAt(0).toUpperCase()}
+                </div>
+                <i className="ri-arrow-down-s-line text-muted"></i>
+              </div>
             </button>
+            
             <ul className="dropdown-menu dropdown-menu-end shadow">
               <li>
-                <a className="dropdown-item d-flex align-items-center" href="#">
+                <button 
+                  className="dropdown-item d-flex align-items-center"
+                  onClick={() => setShowUserProfileModal(true)}
+                >
                   <i className="ri-user-line me-2"></i>
                   Hồ sơ cá nhân
-                </a>
+                </button>
               </li>
               <li>
-                <a className="dropdown-item d-flex align-items-center" href="#">
-                  <i className="ri-settings-3-line me-2"></i>
-                  Cài đặt
-                </a>
+                <button 
+                  className="dropdown-item d-flex align-items-center"
+                  onClick={() => setShowChangePasswordModal(true)}
+                >
+                  <i className="ri-lock-password-line me-2"></i>
+                  Đổi mật khẩu
+                </button>
               </li>
               <li><hr className="dropdown-divider" /></li>
               <li>
@@ -110,6 +201,16 @@ function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <ChangePasswordModal 
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
+      <UserProfileModal 
+        isOpen={showUserProfileModal}
+        onClose={() => setShowUserProfileModal(false)}
+      />
     </nav>
   );
 }
