@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axiosInstance from '../../utils/axiosInstance';
 import { toast } from 'react-toastify';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 
 function QuanLyBangChamCong() {
   const [loading, setLoading] = useState(true);
@@ -24,6 +24,10 @@ function QuanLyBangChamCong() {
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
   const [summaryData, setSummaryData] = useState([]);
   const [showSummary, setShowSummary] = useState(false);
+
+  const [selectedYearForExport, setSelectedYearForExport] = useState(new Date().getFullYear());
+
+
 
   const getKyHieuDescription = (maKyHieu, kyHieuChamCongs) => {
     const kyHieu = kyHieuChamCongs.find(kh => kh.maKyHieu === maKyHieu);
@@ -446,379 +450,1202 @@ function QuanLyBangChamCong() {
   };
 
   // Xuất file Excel
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
+  // Xuất file Excel với ExcelJS
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
     const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
       nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'TC-HCQT';
 
     if (showSummary) {
-      // Xuất dữ liệu tổng hợp - CẢI THIỆN
+      // =================== XUẤT DỮ LIỆU TỔNG HỢP VỚI EXCELJS ===================
       const summaryData = calculateSummaryData();
-      const wsData = [];
+      const worksheet = workbook.addWorksheet('Tổng Hợp Chấm Công');
 
-      // Header thông tin bệnh viện
-      wsData.push(['BỆNH VIỆN QUẬN TÂN PHÚ', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM']);
-      wsData.push(['PHÒNG ' + khoaPhongName, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Độc lập - Tự do - Hạnh phúc']);
-      wsData.push([]);
-      wsData.push([`BẢNG TỔNG HỢP CHẤM CÔNG`]);
-      wsData.push([`THÁNG ${selectedMonth} NĂM ${selectedYear}`]);
-      wsData.push([]);
+      const totalCols = 4 + daysInMonth + 10;
 
-      // Header chính - 3 dòng
-      const headerRow1 = ['', 'Họ Tên', 'Ngày tháng năm sinh', 'Khoa/phòng'];
-      const headerRow2 = ['', '', '', '', 'NGÀY TRONG THÁNG'];
-      const headerRow3 = ['STT', '', '', ''];
+      // 1. HEADER THÔNG TIN BỆNH VIỆN
+      worksheet.mergeCells(1, 1, 1, Math.floor(totalCols / 2));
+      worksheet.getCell(1, 1).value = 'BỆNH VIỆN QUẬN TÂN PHÚ';
 
-      // Thêm các ngày trong tháng
+      worksheet.mergeCells(1, Math.floor(totalCols / 2) + 1, 1, totalCols);
+      worksheet.getCell(1, Math.floor(totalCols / 2) + 1).value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
+
+      worksheet.mergeCells(2, 1, 2, Math.floor(totalCols / 2));
+      worksheet.getCell(2, 1).value = `PHÒNG ${khoaPhongName}`;
+
+      worksheet.mergeCells(2, Math.floor(totalCols / 2) + 1, 2, totalCols);
+      worksheet.getCell(2, Math.floor(totalCols / 2) + 1).value = 'Độc lập - Tự do - Hạnh phúc';
+
+      // 2. TIÊU ĐỀ BẢNG
+      worksheet.mergeCells(4, Math.floor(totalCols / 2) - 4, 4, Math.floor(totalCols / 2) + 6);
+      worksheet.getCell(4, Math.floor(totalCols / 2) - 4).value = 'BẢNG TỔNG HỢP CHẤM CÔNG';
+
+      worksheet.mergeCells(5, Math.floor(totalCols / 2) - 2, 5, Math.floor(totalCols / 2) + 4);
+      worksheet.getCell(5, Math.floor(totalCols / 2) - 2).value = `THÁNG ${selectedMonth} NĂM ${selectedYear}`;
+
+      // 3. HEADER CHÍNH (3 dòng)
+      const headerRow = 7;
+
+      // Merge các cột chính theo chiều dọc (3 dòng)
+      worksheet.mergeCells(headerRow, 1, headerRow + 2, 1); // STT
+      worksheet.getCell(headerRow, 1).value = 'STT';
+
+      worksheet.mergeCells(headerRow, 2, headerRow + 2, 2); // Họ tên
+      worksheet.getCell(headerRow, 2).value = 'Họ Tên';
+
+      worksheet.mergeCells(headerRow, 3, headerRow + 2, 3); // Ngày sinh
+      worksheet.getCell(headerRow, 3).value = 'Ngày tháng năm sinh';
+
+      worksheet.mergeCells(headerRow, 4, headerRow + 2, 4); // Khoa phòng
+      worksheet.getCell(headerRow, 4).value = 'Khoa/phòng';
+
+      // Header "NGÀY TRONG THÁNG" (chỉ merge ngang)
+      worksheet.mergeCells(headerRow, 5, headerRow, 4 + daysInMonth);
+      worksheet.getCell(headerRow, 5).value = 'NGÀY TRONG THÁNG';
+
+      // Số ngày (1, 2, 3, ...)
       for (let i = 1; i <= daysInMonth; i++) {
-        headerRow1.push('');
-        headerRow2.push(i.toString());
-
-        // Thêm tên thứ cho dòng 3
-        const date = new Date(selectedYear, selectedMonth - 1, i);
-        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
-        headerRow3.push(dayName);
+        worksheet.getCell(headerRow + 1, 4 + i).value = i;
       }
 
-      // Thêm các cột tổng hợp
-      const summaryColumns = [
-        'Số ngày làm việc (A)',
-        'Những ngày nghỉ không làm việc (B)',
-        'Phép (C)',
-        'BHXH (D)',
-        'Học, Hội nghỉ, Tập huấn, Hợp (E)',
-        'Khác (F)',
-        'Tổng số ngày làm (A+B)',
-        'Tổng số ngày nghỉ (C+D+E+F)',
-        'Tổng cộng',
-        'Ghi chú'
+      // Tên thứ (CN, T2, T3, ...)
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(selectedYear, selectedMonth - 1, i);
+        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+        worksheet.getCell(headerRow + 2, 4 + i).value = dayName;
+      }
+
+      // Header tổng hợp (merge theo chiều dọc)
+      const summaryHeaders = [
+        'Số ngày làm việc (A)', 'Ngày nghỉ không làm việc (B)', 'Phép (C)', 'BHXH (D)',
+        'Học/Hội nghị/Tập huấn (E)', 'Khác (F)', 'Tổng ngày làm (A+B)',
+        'Tổng ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú'
       ];
 
-      summaryColumns.forEach(col => {
-        headerRow1.push(col);
-        headerRow2.push('');
-        headerRow3.push('');
+      summaryHeaders.forEach((header, index) => {
+        const col = 5 + daysInMonth + index;
+        worksheet.mergeCells(headerRow, col, headerRow + 2, col);
+        worksheet.getCell(headerRow, col).value = header;
       });
 
-      wsData.push(headerRow1);
-      wsData.push(headerRow2);
-      wsData.push(headerRow3);
+      // 4. DỮ LIỆU NHÂN VIÊN
+      let currentRow = headerRow + 3;
 
-      // Dữ liệu nhân viên
       summaryData.forEach((nv, index) => {
         const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
 
-        // Dòng ca 1
-        const row1 = [
-          index + 1,
-          nv.hoTen || 'N/A',
-          nv.ngayThangNamSinh || 'N/A',
-          nv.khoaPhong?.tenKhoaPhong || khoaPhongName
-        ];
+        // Merge thông tin nhân viên qua 2 dòng (ca 1 và ca 2)
+        worksheet.mergeCells(currentRow, 1, currentRow + 1, 1); // STT
+        worksheet.getCell(currentRow, 1).value = index + 1;
 
+        worksheet.mergeCells(currentRow, 2, currentRow + 1, 2); // Họ tên
+        worksheet.getCell(currentRow, 2).value = nv.hoTen || 'N/A';
+
+        worksheet.mergeCells(currentRow, 3, currentRow + 1, 3); // Ngày sinh
+        worksheet.getCell(currentRow, 3).value = nv.ngayThangNamSinh || 'N/A';
+
+        worksheet.mergeCells(currentRow, 4, currentRow + 1, 4); // Khoa phòng
+        worksheet.getCell(currentRow, 4).value = nv.khoaPhong?.tenKhoaPhong || khoaPhongName;
+
+        // Dữ liệu ca 1 và ca 2
         for (let day = 1; day <= daysInMonth; day++) {
           const shift1Symbol = employeeData[1][day] || '-';
-          row1.push(shift1Symbol);
-        }
-
-        row1.push(
-          nv.workDaysA,
-          nv.weekendDaysB,
-          nv.phepDaysC,
-          nv.bhxhDaysD,
-          nv.hocHoiDaysE,
-          nv.khacDaysF,
-          nv.tongSoNgayLamAB,
-          nv.tongSoNgayNghiCDEF,
-          nv.tongCong,
-          nv.note
-        );
-        wsData.push(row1);
-
-        // Dòng ca 2
-        const row2 = ['', '', '', ''];
-        for (let day = 1; day <= daysInMonth; day++) {
           const shift2Symbol = employeeData[2][day] || '-';
-          row2.push(shift2Symbol);
+
+          worksheet.getCell(currentRow, 4 + day).value = shift1Symbol; // Ca 1
+          worksheet.getCell(currentRow + 1, 4 + day).value = shift2Symbol; // Ca 2
         }
-        // Thêm các ô trống cho cột tổng hợp
-        summaryColumns.forEach(() => row2.push(''));
-        wsData.push(row2);
+
+        // Merge dữ liệu tổng hợp qua 2 dòng
+        const summaryValues = [
+          nv.workDaysA, nv.weekendDaysB, nv.phepDaysC, nv.bhxhDaysD,
+          nv.hocHoiDaysE, nv.khacDaysF, nv.tongSoNgayLamAB,
+          nv.tongSoNgayNghiCDEF, nv.tongCong, nv.note
+        ];
+
+        summaryValues.forEach((data, index) => {
+          const col = 5 + daysInMonth + index;
+          worksheet.mergeCells(currentRow, col, currentRow + 1, col);
+          worksheet.getCell(currentRow, col).value = data;
+        });
+
+        currentRow += 2;
       });
 
-      // Thêm chú thích ký hiệu - CẢI THIỆN: Chia thành 2 cột
-      wsData.push([]);
-      wsData.push(['CHÚ THÍCH KÝ HIỆU:']);
-      wsData.push([]);
+      // 5. STYLING VỚI EXCELJS
+      const hospitalTitleStyle = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
 
-      // Chia ký hiệu thành 2 cột
-      const midPoint = Math.ceil(kyHieuChamCongs.length / 2);
-      const leftColumn = kyHieuChamCongs.slice(0, midPoint);
-      const rightColumn = kyHieuChamCongs.slice(midPoint);
+      worksheet.getCell(1, 1).style = hospitalTitleStyle;
+      worksheet.getCell(1, Math.floor(totalCols / 2) + 1).style = hospitalTitleStyle;
+      worksheet.getCell(2, 1).style = hospitalTitleStyle;
+      worksheet.getCell(2, Math.floor(totalCols / 2) + 1).style = hospitalTitleStyle;
 
-      // Header cho 2 cột ký hiệu
-      wsData.push(['Ký hiệu', 'Ý nghĩa', '', 'Ký hiệu', 'Ý nghĩa']);
+      const tableTitleStyle = {
+        font: { name: 'Times New Roman', size: 14, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
 
-      // Dữ liệu ký hiệu
-      for (let i = 0; i < Math.max(leftColumn.length, rightColumn.length); i++) {
-        const row = [];
+      worksheet.getCell(4, Math.floor(totalCols / 2) - 4).style = tableTitleStyle;
+      worksheet.getCell(5, Math.floor(totalCols / 2) - 2).style = tableTitleStyle;
 
-        // Cột trái
-        if (i < leftColumn.length) {
-          row.push(leftColumn[i].maKyHieu, leftColumn[i].tenKyHieu);
-        } else {
-          row.push('', '');
+      const headerStyle = {
+        font: { name: 'Times New Roman', size: 10, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
         }
+      };
 
-        row.push(''); // Cột trống giữa
-
-        // Cột phải
-        if (i < rightColumn.length) {
-          row.push(rightColumn[i].maKyHieu, rightColumn[i].tenKyHieu);
-        } else {
-          row.push('', '');
+      // Áp dụng style cho tất cả header cells
+      for (let row = headerRow; row <= headerRow + 2; row++) {
+        for (let col = 1; col <= totalCols; col++) {
+          worksheet.getCell(row, col).style = headerStyle;
         }
-
-        wsData.push(row);
       }
 
-      // Thêm ký hiệu đặc biệt
-      wsData.push(['-', 'Không có dữ liệu']);
+      const dataStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
 
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const nameStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'left', vertical: 'middle', wrapText: true },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
 
-      // Thiết lập độ rộng cột
-      const colWidths = [
-        { wch: 5 },   // STT
-        { wch: 25 },  // Họ tên
-        { wch: 15 },  // Ngày sinh
-        { wch: 15 },  // Khoa phòng
-      ];
+      // Áp dụng style cho dữ liệu
+      const dataStartRow = headerRow + 3;
+      const dataEndRow = dataStartRow + summaryData.length * 2 - 1;
+
+      for (let row = dataStartRow; row <= dataEndRow; row++) {
+        for (let col = 1; col <= totalCols; col++) {
+          if (col === 2) {
+            worksheet.getCell(row, col).style = nameStyle; // Cột họ tên
+          } else if (col === totalCols) {
+            worksheet.getCell(row, col).style = nameStyle; // Cột ghi chú
+          } else {
+            worksheet.getCell(row, col).style = dataStyle; // Các cột khác
+          }
+        }
+      }
+
+      // 6. THIẾT LẬP KÍCH THƯỚC CỘT VÀ DÒNG
+      worksheet.getColumn(1).width = 5;   // STT
+      worksheet.getColumn(2).width = 25;  // Họ tên
+      worksheet.getColumn(3).width = 15;  // Ngày sinh
+      worksheet.getColumn(4).width = 15;  // Khoa phòng
 
       // Cột ngày
       for (let i = 0; i < daysInMonth; i++) {
-        colWidths.push({ wch: 4 });
+        worksheet.getColumn(5 + i).width = 4;
       }
 
       // Cột tổng hợp
-      colWidths.push(
-        { wch: 12 }, // A
-        { wch: 12 }, // B
-        { wch: 8 },  // C
-        { wch: 8 },  // D
-        { wch: 15 }, // E
-        { wch: 8 },  // F
-        { wch: 12 }, // A+B
-        { wch: 12 }, // C+D+E+F
-        { wch: 10 }, // Tổng cộng
-        { wch: 25 }  // Ghi chú
-      );
+      const summaryWidths = [16, 20, 8, 10, 22, 8, 16, 18, 10, 20];
+      summaryWidths.forEach((width, index) => {
+        worksheet.getColumn(5 + daysInMonth + index).width = width;
+      });
 
-      ws['!cols'] = colWidths;
+      // Chiều cao dòng
+      worksheet.getRow(headerRow).height = 30;
+      worksheet.getRow(headerRow + 1).height = 20;
+      worksheet.getRow(headerRow + 2).height = 20;
 
-      // Thiết lập merge cells
-      const merges = [
-        // Header bệnh viện
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
-        { s: { r: 0, c: 17 }, e: { r: 0, c: daysInMonth + 13 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
-        { s: { r: 1, c: 17 }, e: { r: 1, c: daysInMonth + 13 } },
+      for (let i = dataStartRow; i <= dataEndRow; i++) {
+        worksheet.getRow(i).height = 18;
+      }
 
-        // Tiêu đề bảng
-        { s: { r: 3, c: 0 }, e: { r: 3, c: daysInMonth + 13 } },
-        { s: { r: 4, c: 0 }, e: { r: 4, c: daysInMonth + 13 } },
+      // 7. TÔ MÀU CỘT CUỐI TUẦN (THỨ 7, CHỦ NHẬT) - CHO BẢNG TỔNG HỢP
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(selectedYear, selectedMonth - 1, day);
+        const dayOfWeek = date.getDay(); // 0 = Chủ nhật, 6 = Thứ 7
 
-        // Header "NGÀY TRONG THÁNG"
-        { s: { r: 7, c: 4 }, e: { r: 7, c: 3 + daysInMonth } },
-      ];
+        if (dayOfWeek === 0 || dayOfWeek === 6) { // Cuối tuần
+          const dayColumn = 4 + day; // Cột của ngày
 
-      // Merge cells cho từng nhân viên (STT, Họ tên, Ngày sinh, Khoa phòng)
-      for (let i = 0; i < summaryData.length; i++) {
-        const startRow = 9 + i * 2;
-        merges.push(
-          { s: { r: startRow, c: 0 }, e: { r: startRow + 1, c: 0 } }, // STT
-          { s: { r: startRow, c: 1 }, e: { r: startRow + 1, c: 1 } }, // Họ tên
-          { s: { r: startRow, c: 2 }, e: { r: startRow + 1, c: 2 } }, // Ngày sinh
-          { s: { r: startRow, c: 3 }, e: { r: startRow + 1, c: 3 } }  // Khoa phòng
-        );
+          // Style cho header của ngày cuối tuần
+          for (let row = headerRow; row <= headerRow + 2; row++) {
+            const cell = worksheet.getCell(row, dayColumn);
+            cell.style = {
+              ...cell.style,
+              fill: {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE8F5E8' } // Màu xanh nhạt cho header cuối tuần
+              }
+            };
+          }
 
-        // Merge các cột tổng hợp
-        for (let col = 4 + daysInMonth; col < 4 + daysInMonth + 10; col++) {
-          merges.push({ s: { r: startRow, c: col }, e: { r: startRow + 1, c: col } });
+          // Style cho dữ liệu của ngày cuối tuần
+          for (let row = dataStartRow; row <= dataEndRow; row++) {
+            const cell = worksheet.getCell(row, dayColumn);
+            cell.style = {
+              ...cell.style,
+              fill: {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE8F5E8' } // Màu xanh nhạt cho dữ liệu cuối tuần
+              }
+            };
+          }
         }
       }
 
-      ws['!merges'] = merges;
+      // CHÚ THÍCH KÝ HIỆU
+      let legendStartRow = dataEndRow + 3;
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Tổng Hợp Chấm Công');
+      worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
+      worksheet.mergeCells(legendStartRow, 1, legendStartRow, totalCols);
 
-    } else {
-      // Xuất dữ liệu chi tiết - CẢI THIỆN
-      const wsData = [];
+      const legendTitleStyle = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'left', vertical: 'middle' }
+      };
+      worksheet.getCell(legendStartRow, 1).style = legendTitleStyle;
 
-      // Header thông tin
-      wsData.push([`BẢNG CHẤM CÔNG CHI TIẾT THÁNG ${selectedMonth}/${selectedYear}`]);
-      wsData.push([`Khoa phòng: ${khoaPhongName}`]);
-      wsData.push([`Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`]);
-      wsData.push([`Tổng số nhân viên: ${filteredEmployees.length}`]);
-      wsData.push([]);
+      legendStartRow += 2;
 
-      // Header bảng - 3 dòng
-      const headerRow1 = ['STT', 'Mã NV', 'Họ và Tên', 'Khoa Phòng'];
-      const headerRow2 = ['', '', '', '', 'NGÀY TRONG THÁNG (CA SÁNG / CA CHIỀU)'];
-      const headerRow3 = ['', '', '', ''];
+      // Header bảng ký hiệu
+      worksheet.getCell(legendStartRow, 1).value = 'Ký hiệu';
+      worksheet.getCell(legendStartRow, 2).value = 'Ý nghĩa';
+      worksheet.getCell(legendStartRow, 4).value = 'Ký hiệu';
+      worksheet.getCell(legendStartRow, 5).value = 'Ý nghĩa';
 
-      // Thêm header ngày
-      for (let i = 1; i <= daysInMonth; i++) {
-        headerRow1.push(i.toString());
-        headerRow2.push('');
+      const legendHeaderStyle = {
+        font: { name: 'Times New Roman', size: 10, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
 
-        const date = new Date(selectedYear, selectedMonth - 1, i);
-        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
-        headerRow3.push(dayName);
+      [1, 2, 4, 5].forEach(col => {
+        worksheet.getCell(legendStartRow, col).style = legendHeaderStyle;
+      });
+
+      legendStartRow += 1;
+
+      const midPoint = Math.ceil(kyHieuChamCongs.length / 2);
+      const leftColumn = kyHieuChamCongs.slice(0, midPoint);
+      const rightColumn = kyHieuChamCongs.slice(midPoint);
+
+      const legendDataStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+
+      const legendDescStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'left', vertical: 'middle' },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+
+      for (let i = 0; i < Math.max(leftColumn.length, rightColumn.length); i++) {
+        const row = legendStartRow + i;
+
+        if (i < leftColumn.length) {
+          worksheet.getCell(row, 1).value = leftColumn[i].maKyHieu;
+          worksheet.getCell(row, 2).value = leftColumn[i].tenKyHieu;
+          worksheet.getCell(row, 1).style = legendDataStyle;
+          worksheet.getCell(row, 2).style = legendDescStyle;
+        }
+
+        if (i < rightColumn.length) {
+          worksheet.getCell(row, 4).value = rightColumn[i].maKyHieu;
+          worksheet.getCell(row, 5).value = rightColumn[i].tenKyHieu;
+          worksheet.getCell(row, 4).style = legendDataStyle;
+          worksheet.getCell(row, 5).style = legendDescStyle;
+        }
       }
 
-      // Thêm cột thống kê
-      headerRow1.push('Số ngày làm việc', 'Số ngày nghỉ', 'Tỷ lệ chấm công (%)', 'Ghi chú');
-      headerRow2.push('', '', '', '');
-      headerRow3.push('', '', '', '');
+      const specialRow = legendStartRow + Math.max(leftColumn.length, rightColumn.length);
+      worksheet.getCell(specialRow, 1).value = '-';
+      worksheet.getCell(specialRow, 2).value = 'Không có dữ liệu';
+      worksheet.getCell(specialRow, 1).style = legendDataStyle;
+      worksheet.getCell(specialRow, 2).style = legendDescStyle;
 
-      wsData.push(headerRow1);
-      wsData.push(headerRow2);
-      wsData.push(headerRow3);
+    } else {
+      // =================== XUẤT DỮ LIỆU CHI TIẾT ===================
+      const worksheet = workbook.addWorksheet('Chấm Công Chi Tiết');
+      const totalDetailCols = 4 + daysInMonth;
 
-      // Dữ liệu nhân viên
+      // 1. HEADER THÔNG TIN BỆNH VIỆN
+      worksheet.mergeCells(1, 1, 1, Math.floor(totalDetailCols / 2));
+      worksheet.getCell(1, 1).value = 'BỆNH VIỆN QUẬN TÂN PHÚ';
+
+      worksheet.mergeCells(1, Math.floor(totalDetailCols / 2) + 1, 1, totalDetailCols);
+      worksheet.getCell(1, Math.floor(totalDetailCols / 2) + 1).value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
+
+      worksheet.mergeCells(2, 1, 2, Math.floor(totalDetailCols / 2));
+      worksheet.getCell(2, 1).value = `PHÒNG ${khoaPhongName}`;
+
+      worksheet.mergeCells(2, Math.floor(totalDetailCols / 2) + 1, 2, totalDetailCols);
+      worksheet.getCell(2, Math.floor(totalDetailCols / 2) + 1).value = 'Độc lập - Tự do - Hạnh phúc';
+
+      // 2. TIÊU ĐỀ BẢNG
+      worksheet.mergeCells(4, Math.floor(totalDetailCols / 2) - 4, 4, Math.floor(totalDetailCols / 2) + 6);
+      worksheet.getCell(4, Math.floor(totalDetailCols / 2) - 4).value = 'BẢNG CHẤM CÔNG CHI TIẾT';
+
+      worksheet.mergeCells(5, Math.floor(totalDetailCols / 2) - 2, 5, Math.floor(totalDetailCols / 2) + 4);
+      worksheet.getCell(5, Math.floor(totalDetailCols / 2) - 2).value = `THÁNG ${selectedMonth} NĂM ${selectedYear}`;
+
+      // 3. HEADER CHÍNH (3 dòng)
+      const detailHeaderRow = 7;
+
+      worksheet.mergeCells(detailHeaderRow, 1, detailHeaderRow + 2, 1); // STT
+      worksheet.getCell(detailHeaderRow, 1).value = 'STT';
+
+      worksheet.mergeCells(detailHeaderRow, 2, detailHeaderRow + 2, 2); // Họ tên
+      worksheet.getCell(detailHeaderRow, 2).value = 'Họ Tên';
+
+      worksheet.mergeCells(detailHeaderRow, 3, detailHeaderRow + 2, 3); // Ngày sinh
+      worksheet.getCell(detailHeaderRow, 3).value = 'Ngày tháng năm sinh';
+
+      worksheet.mergeCells(detailHeaderRow, 4, detailHeaderRow + 2, 4); // Khoa phòng
+      worksheet.getCell(detailHeaderRow, 4).value = 'Khoa/phòng';
+
+      worksheet.mergeCells(detailHeaderRow, 5, detailHeaderRow, 4 + daysInMonth);
+      worksheet.getCell(detailHeaderRow, 5).value = 'NGÀY TRONG THÁNG';
+
+      for (let i = 1; i <= daysInMonth; i++) {
+        worksheet.getCell(detailHeaderRow + 1, 4 + i).value = i;
+      }
+
+      for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(selectedYear, selectedMonth - 1, i);
+        const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+        worksheet.getCell(detailHeaderRow + 2, 4 + i).value = dayName;
+      }
+
+      // 4. DỮ LIỆU NHÂN VIÊN
+      let currentDetailRow = detailHeaderRow + 3;
+
       filteredEmployees.forEach((nv, index) => {
         const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
-        let workDays = 0;
-        let absentDays = 0;
 
-        const row = [
-          index + 1,
-          nv.maNV || 'N/A',
-          nv.hoTen || 'N/A',
-          nv.khoaPhong?.tenKhoaPhong || 'N/A'
-        ];
+        worksheet.mergeCells(currentDetailRow, 1, currentDetailRow + 1, 1); // STT
+        worksheet.getCell(currentDetailRow, 1).value = index + 1;
+
+        worksheet.mergeCells(currentDetailRow, 2, currentDetailRow + 1, 2); // Họ tên
+        worksheet.getCell(currentDetailRow, 2).value = nv.hoTen || 'N/A';
+
+        worksheet.mergeCells(currentDetailRow, 3, currentDetailRow + 1, 3); // Ngày sinh
+        worksheet.getCell(currentDetailRow, 3).value = nv.ngayThangNamSinh || 'N/A';
+
+        worksheet.mergeCells(currentDetailRow, 4, currentDetailRow + 1, 4); // Khoa phòng
+        worksheet.getCell(currentDetailRow, 4).value = nv.khoaPhong?.tenKhoaPhong || khoaPhongName;
 
         for (let day = 1; day <= daysInMonth; day++) {
           const shift1Symbol = employeeData[1][day] || '-';
           const shift2Symbol = employeeData[2][day] || '-';
 
-          // Hiển thị cả 2 ca
-          const combinedSymbol = `${shift1Symbol}/${shift2Symbol}`;
-          row.push(combinedSymbol);
-
-          // Tính thống kê
-          if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) workDays += 0.5;
-          if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) workDays += 0.5;
-
-          if (shift1Symbol !== '-' && !['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) absentDays += 0.5;
-          if (shift2Symbol !== '-' && !['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) absentDays += 0.5;
+          worksheet.getCell(currentDetailRow, 4 + day).value = shift1Symbol; // Ca 1
+          worksheet.getCell(currentDetailRow + 1, 4 + day).value = shift2Symbol; // Ca 2
         }
 
-        const total = workDays + absentDays;
-        const rate = total > 0 ? ((workDays / total) * 100).toFixed(1) : '0';
-
-        row.push(workDays.toFixed(1), absentDays.toFixed(1), rate + '%', '');
-        wsData.push(row);
+        currentDetailRow += 2;
       });
 
-      // Thống kê tổng
-      wsData.push([]);
-      wsData.push(['THỐNG KÊ TỔNG QUAN:']);
-      wsData.push([`- Tổng số nhân viên: ${filteredEmployees.length}`]);
-      wsData.push([`- Nhân viên có dữ liệu chấm công: ${Object.keys(chamCongData).length}`]);
-      wsData.push([`- Tỷ lệ chấm công trung bình: ${statistics.attendanceRate}%`]);
+      // 5. STYLING CHO CHI TIẾT
+      const detailHospitalTitleStyle = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
 
-      // Chú thích ký hiệu - CẢI THIỆN: Chia thành 2 cột
-      wsData.push([]);
-      wsData.push(['CHÚ THÍCH KÝ HIỆU:']);
-      wsData.push([]);
+      worksheet.getCell(1, 1).style = detailHospitalTitleStyle;
+      worksheet.getCell(1, Math.floor(totalDetailCols / 2) + 1).style = detailHospitalTitleStyle;
+      worksheet.getCell(2, 1).style = detailHospitalTitleStyle;
+      worksheet.getCell(2, Math.floor(totalDetailCols / 2) + 1).style = detailHospitalTitleStyle;
 
-      // Chia ký hiệu thành 2 cột
-      const midPoint = Math.ceil(kyHieuChamCongs.length / 2);
-      const leftColumn = kyHieuChamCongs.slice(0, midPoint);
-      const rightColumn = kyHieuChamCongs.slice(midPoint);
+      const detailTableTitleStyle = {
+        font: { name: 'Times New Roman', size: 14, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
 
-      // Header cho 2 cột ký hiệu
-      wsData.push(['Ký hiệu', 'Ý nghĩa', '', 'Ký hiệu', 'Ý nghĩa']);
+      worksheet.getCell(4, Math.floor(totalDetailCols / 2) - 4).style = detailTableTitleStyle;
+      worksheet.getCell(5, Math.floor(totalDetailCols / 2) - 2).style = detailTableTitleStyle;
 
-      // Dữ liệu ký hiệu
-      for (let i = 0; i < Math.max(leftColumn.length, rightColumn.length); i++) {
-        const row = [];
-
-        // Cột trái
-        if (i < leftColumn.length) {
-          row.push(leftColumn[i].maKyHieu, leftColumn[i].tenKyHieu);
-        } else {
-          row.push('', '');
+      const detailHeaderStyle = {
+        font: { name: 'Times New Roman', size: 10, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
         }
+      };
 
-        row.push(''); // Cột trống giữa
-
-        // Cột phải  
-        if (i < rightColumn.length) {
-          row.push(rightColumn[i].maKyHieu, rightColumn[i].tenKyHieu);
-        } else {
-          row.push('', '');
+      for (let row = detailHeaderRow; row <= detailHeaderRow + 2; row++) {
+        for (let col = 1; col <= totalDetailCols; col++) {
+          worksheet.getCell(row, col).style = detailHeaderStyle;
         }
-
-        wsData.push(row);
       }
 
-      // Thêm ký hiệu đặc biệt
-      wsData.push(['-/-', 'Không có dữ liệu cả 2 ca']);
+      const detailDataStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
 
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const detailNameStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'left', vertical: 'middle', wrapText: true },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
 
-      // Thiết lập độ rộng cột
-      const colWidths = [
-        { wch: 5 },   // STT
-        { wch: 12 },  // Mã NV
-        { wch: 25 },  // Họ tên
-        { wch: 15 },  // Khoa phòng
-      ];
+      const detailDataStartRow = detailHeaderRow + 3;
+      const detailDataEndRow = detailDataStartRow + filteredEmployees.length * 2 - 1;
 
-      // Cột ngày (rộng hơn vì hiển thị 2 ca)
+      for (let row = detailDataStartRow; row <= detailDataEndRow; row++) {
+        for (let col = 1; col <= totalDetailCols; col++) {
+          worksheet.getCell(row, col).style = col === 2 ? detailNameStyle : detailDataStyle;
+        }
+      }
+
+      // 6. THIẾT LẬP KÍCH THƯỚC CỘT VÀ DÒNG
+      worksheet.getColumn(1).width = 5;   // STT
+      worksheet.getColumn(2).width = 25;  // Họ tên
+      worksheet.getColumn(3).width = 15;  // Ngày sinh
+      worksheet.getColumn(4).width = 15;  // Khoa phòng
+
       for (let i = 0; i < daysInMonth; i++) {
-        colWidths.push({ wch: 8 });
+        worksheet.getColumn(5 + i).width = 4;
       }
 
-      // Cột thống kê
-      colWidths.push(
-        { wch: 15 }, // Số ngày làm việc
-        { wch: 12 }, // Số ngày nghỉ
-        { wch: 15 }, // Tỷ lệ
-        { wch: 20 }  // Ghi chú
-      );
+      worksheet.getRow(detailHeaderRow).height = 30;
+      worksheet.getRow(detailHeaderRow + 1).height = 20;
+      worksheet.getRow(detailHeaderRow + 2).height = 20;
 
-      ws['!cols'] = colWidths;
+      for (let i = detailDataStartRow; i <= detailDataEndRow; i++) {
+        worksheet.getRow(i).height = 18;
+      }
 
-      // Merge cells
-      const merges = [
-        // Header thông tin
-        { s: { r: 0, c: 0 }, e: { r: 0, c: daysInMonth + 7 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: daysInMonth + 7 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: daysInMonth + 7 } },
-        { s: { r: 3, c: 0 }, e: { r: 3, c: daysInMonth + 7 } },
+      // 7. TÔ MÀU CỘT CUỐI TUẦN CHO BẢNG CHI TIẾT
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(selectedYear, selectedMonth - 1, day);
+        const dayOfWeek = date.getDay(); // 0 = Chủ nhật, 6 = Thứ 7
 
-        // Header "NGÀY TRONG THÁNG"
-        { s: { r: 6, c: 4 }, e: { r: 6, c: 3 + daysInMonth } },
-      ];
+        if (dayOfWeek === 0 || dayOfWeek === 6) { // Cuối tuần
+          const dayColumn = 4 + day; // Cột của ngày
 
-      ws['!merges'] = merges;
+          // Style cho header của ngày cuối tuần
+          for (let row = detailHeaderRow; row <= detailHeaderRow + 2; row++) {
+            const cell = worksheet.getCell(row, dayColumn);
+            cell.style = {
+              ...cell.style,
+              fill: {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE8F5E8' } // Màu xanh nhạt cho header cuối tuần
+              }
+            };
+          }
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Chấm Công Chi Tiết');
+          // Style cho dữ liệu của ngày cuối tuần  
+          for (let row = detailDataStartRow; row <= detailDataEndRow; row++) {
+            const cell = worksheet.getCell(row, dayColumn);
+            cell.style = {
+              ...cell.style,
+              fill: {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFE8F5E8' } // Màu xanh nhạt cho dữ liệu cuối tuần
+              }
+            };
+          }
+        }
+      }
+
+      // CHÚ THÍCH KÝ HIỆU CHO BẢNG CHI TIẾT
+      let detailLegendStartRow = detailDataEndRow + 3;
+
+      worksheet.getCell(detailLegendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
+      worksheet.mergeCells(detailLegendStartRow, 1, detailLegendStartRow, totalDetailCols);
+
+      const detailLegendTitleStyle = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'left', vertical: 'middle' }
+      };
+      worksheet.getCell(detailLegendStartRow, 1).style = detailLegendTitleStyle;
+
+      detailLegendStartRow += 2;
+
+      // Header bảng ký hiệu
+      worksheet.getCell(detailLegendStartRow, 1).value = 'Ký hiệu';
+      worksheet.getCell(detailLegendStartRow, 2).value = 'Ý nghĩa';
+      worksheet.getCell(detailLegendStartRow, 4).value = 'Ký hiệu';
+      worksheet.getCell(detailLegendStartRow, 5).value = 'Ý nghĩa';
+
+      const detailLegendHeaderStyle = {
+        font: { name: 'Times New Roman', size: 10, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+
+      [1, 2, 4, 5].forEach(col => {
+        worksheet.getCell(detailLegendStartRow, col).style = detailLegendHeaderStyle;
+      });
+
+      detailLegendStartRow += 1;
+
+      // Dữ liệu ký hiệu chi tiết (2 cột)
+      const detailMidPoint = Math.ceil(kyHieuChamCongs.length / 2);
+      const detailLeftColumn = kyHieuChamCongs.slice(0, detailMidPoint);
+      const detailRightColumn = kyHieuChamCongs.slice(detailMidPoint);
+
+      const detailLegendDataStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+
+      const detailLegendDescStyle = {
+        font: { name: 'Times New Roman', size: 9 },
+        alignment: { horizontal: 'left', vertical: 'middle' },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+
+      for (let i = 0; i < Math.max(detailLeftColumn.length, detailRightColumn.length); i++) {
+        const row = detailLegendStartRow + i;
+
+        if (i < detailLeftColumn.length) {
+          worksheet.getCell(row, 1).value = detailLeftColumn[i].maKyHieu;
+          worksheet.getCell(row, 2).value = detailLeftColumn[i].tenKyHieu;
+          worksheet.getCell(row, 1).style = detailLegendDataStyle;
+          worksheet.getCell(row, 2).style = detailLegendDescStyle;
+        }
+
+        if (i < detailRightColumn.length) {
+          worksheet.getCell(row, 4).value = detailRightColumn[i].maKyHieu;
+          worksheet.getCell(row, 5).value = detailRightColumn[i].tenKyHieu;
+          worksheet.getCell(row, 4).style = detailLegendDataStyle;
+          worksheet.getCell(row, 5).style = detailLegendDescStyle;
+        }
+      }
+
+      // Ký hiệu đặc biệt chi tiết
+      const detailSpecialRow = detailLegendStartRow + Math.max(detailLeftColumn.length, detailRightColumn.length);
+      worksheet.getCell(detailSpecialRow, 1).value = '-';
+      worksheet.getCell(detailSpecialRow, 2).value = 'Không có dữ liệu';
+      worksheet.getCell(detailSpecialRow, 1).style = detailLegendDataStyle;
+      worksheet.getCell(detailSpecialRow, 2).style = detailLegendDescStyle;
     }
 
-    // Tạo tên file
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    const fileName = `${showSummary ? 'TongHop_' : 'ChiTiet_'}ChamCong_Thang${selectedMonth.toString().padStart(2, '0')}_${selectedYear}_${timestamp}.xlsx`;
+    // 8. XUẤT FILE
+    try {
+      const buffer = await workbook.xlsx.writeBuffer();
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const fileName = `${showSummary ? 'TongHop_' : 'ChiTiet_'}ChamCong_Thang${selectedMonth.toString().padStart(2, '0')}_${selectedYear}_${timestamp}.xlsx`;
 
-    // Lưu file
-    XLSX.writeFile(wb, fileName);
-    toast.success(`Xuất file Excel ${showSummary ? 'tổng hợp' : 'chi tiết'} thành công!`);
+      // Tạo file download
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Xuất file Excel ${showSummary ? 'tổng hợp' : 'chi tiết'} thành công!`);
+    } catch (error) {
+      console.error('Lỗi xuất Excel:', error);
+      toast.error('Có lỗi xảy ra khi xuất file Excel!');
+    }
   };
+
+
+  // Hàm xuất Excel theo năm với 12 tab tháng
+  const exportToExcelYearly = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
+        nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'TC-HCQT';
+
+      // Lấy danh sách ký hiệu chấm công
+      let yearlyKyHieuChamCongs = [];
+      try {
+        const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
+        yearlyKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
+      } catch (error) {
+        console.error('Lỗi khi tải ký hiệu chấm công:', error);
+        yearlyKyHieuChamCongs = kyHieuChamCongs || []; // Fallback về biến hiện tại nếu có lỗi
+      }
+
+      // Lặp qua 12 tháng
+      for (let month = 1; month <= 12; month++) {
+        // Tính số ngày trong tháng
+        const monthDaysInMonth = new Date(selectedYearForExport, month, 0).getDate();
+
+        // Lấy dữ liệu chấm công cho tháng này
+        let monthChamCongData = {};
+        let monthFilteredEmployees = [];
+
+        try {
+          const khoaPhongIdToUse = selectedKhoaPhongId || userKhoaPhongId;
+
+          // Lấy dữ liệu nhân viên
+          const nhanVienResponse = await axiosInstance.get('/nhanvien', {
+            params: { khoaPhongId: khoaPhongIdToUse, page: 0, size: 100 },
+          });
+          monthFilteredEmployees = nhanVienResponse.data.content || [];
+
+          // Lấy dữ liệu chấm công cho tháng
+          const chamCongResponse = await axiosInstance.get('/chamcong/lichsu', {
+            params: {
+              year: selectedYearForExport,
+              month: month,
+              khoaPhongId: khoaPhongIdToUse,
+              page: 0,
+              size: 1000,
+            },
+          });
+
+          // Xử lý dữ liệu chấm công giống như trong fetchData
+          const chamCongMap = {};
+          if (chamCongResponse.data.content && Array.isArray(chamCongResponse.data.content)) {
+            const groupedRecords = {};
+
+            chamCongResponse.data.content.forEach((record) => {
+              if (record.nhanVien && record.nhanVien.id && record.nhanVien.trangThai === 1) {
+                const thoiGianCheckIn = record.thoiGianCheckIn;
+                let day;
+
+                if (thoiGianCheckIn) {
+                  const [datePart] = thoiGianCheckIn.split(' ');
+                  const [dayStr, monthStr, yearStr] = datePart.split('-');
+                  day = parseInt(dayStr, 10);
+                  const recordMonth = parseInt(monthStr, 10);
+                  const recordYear = parseInt(yearStr, 10);
+
+                  if (recordMonth !== month || recordYear !== selectedYearForExport) {
+                    return;
+                  }
+                } else {
+                  return;
+                }
+
+                const nhanVienId = record.nhanVien.id;
+                const dateKey = `${nhanVienId}_${day}`;
+
+                if (!groupedRecords[dateKey]) {
+                  groupedRecords[dateKey] = [];
+                }
+                groupedRecords[dateKey].push(record);
+              }
+            });
+
+            // Xử lý từng nhóm
+            Object.keys(groupedRecords).forEach((dateKey) => {
+              const records = groupedRecords[dateKey];
+              const [nhanVienId, day] = dateKey.split('_');
+              const nhanVienIdNum = parseInt(nhanVienId);
+              const dayNum = parseInt(day);
+
+              if (dayNum >= 1 && dayNum <= monthDaysInMonth) {
+                if (!chamCongMap[nhanVienIdNum]) {
+                  chamCongMap[nhanVienIdNum] = { 1: {}, 2: {} };
+                }
+
+                records.sort((a, b) => {
+                  const parseDate = (dateStr) => {
+                    if (!dateStr) return new Date();
+                    const [datePart, timePart] = dateStr.split(' ');
+                    const [day, month, year] = datePart.split('-');
+                    return new Date(`${year}-${month}-${day}T${timePart}`);
+                  };
+                  return new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn));
+                });
+
+                records.forEach((record, index) => {
+                  if (index < 2) {
+                    const shift = index + 1;
+                    let symbol = '-';
+                    if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong) {
+                      symbol = record.kyHieuChamCong.maKyHieu || 'N';
+                    } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec) {
+                      symbol = record.caLamViec.kyHieuChamCong?.maKyHieu || 'X';
+                    }
+                    chamCongMap[nhanVienIdNum][shift][dayNum] = symbol;
+                  }
+                });
+              }
+            });
+          }
+
+          monthChamCongData = Object.keys(chamCongMap).reduce((acc, nhanVienId) => {
+            if (monthFilteredEmployees.some(nv => nv.id === parseInt(nhanVienId))) {
+              acc[nhanVienId] = chamCongMap[nhanVienId];
+            }
+            return acc;
+          }, {});
+
+        } catch (error) {
+          console.error(`Lỗi khi lấy dữ liệu tháng ${month}:`, error);
+          // Tiếp tục với tháng tiếp theo nếu có lỗi
+          monthChamCongData = {};
+          monthFilteredEmployees = [];
+        }
+
+        // Tính toán dữ liệu tổng hợp cho tháng này
+        const monthSummaryData = monthFilteredEmployees.map(nv => {
+          const employeeData = monthChamCongData[nv.id] || { 1: {}, 2: {} };
+
+          let workDaysA = 0;
+          let weekendDaysB = 0;
+          let phepDaysC = 0;
+          let bhxhDaysD = 0;
+          let hocHoiDaysE = 0;
+          let khacDaysF = 0;
+
+          for (let day = 1; day <= monthDaysInMonth; day++) {
+            const shift1Symbol = employeeData[1][day] || '-';
+            const shift2Symbol = employeeData[2][day] || '-';
+
+            // Tính toán theo logic hiện tại
+            if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) {
+              workDaysA += 0.5;
+            }
+            if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) {
+              workDaysA += 0.5;
+            }
+
+            if (shift1Symbol === 'N1') weekendDaysB += 0.5;
+            if (shift2Symbol === 'N1') weekendDaysB += 0.5;
+
+            if (['PN', 'PC', 'PT'].includes(shift1Symbol)) phepDaysC += 0.5;
+            if (['PN', 'PC', 'PT'].includes(shift2Symbol)) phepDaysC += 0.5;
+
+            if (shift1Symbol === 'Bo') bhxhDaysD += 0.5;
+            if (shift2Symbol === 'Bo') bhxhDaysD += 0.5;
+
+            if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) hocHoiDaysE += 0.5;
+            if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) hocHoiDaysE += 0.5;
+
+            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift1Symbol)) khacDaysF += 0.5;
+            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift2Symbol)) khacDaysF += 0.5;
+          }
+
+          const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC;
+          const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF;
+          const tongCong = tongSoNgayLamAB;
+
+          // Tạo ghi chú đơn giản
+          const noteArray = [];
+
+          if (weekendDaysB > 0) {
+            noteArray.push(`- Ngày nghỉ không làm việc: ${weekendDaysB.toFixed(1)}`);
+          }
+
+          if (phepDaysC > 0) {
+            noteArray.push(`- Phép năm: ${phepDaysC.toFixed(1)}`);
+          }
+
+          if (bhxhDaysD > 0) {
+            noteArray.push(`- BHXH (bản thân ốm): ${bhxhDaysD.toFixed(1)}`);
+          }
+
+          if (hocHoiDaysE > 0) {
+            noteArray.push(`- Học/Hội: ${hocHoiDaysE.toFixed(1)}`);
+          }
+
+          if (khacDaysF > 0) {
+            noteArray.push(`- Khác: ${khacDaysF.toFixed(1)}`);
+          }
+
+          const note = noteArray.join('\n');
+
+          return {
+            ...nv,
+            workDaysA: workDaysA.toFixed(1),
+            weekendDaysB: weekendDaysB.toFixed(1),
+            phepDaysC: phepDaysC.toFixed(1),
+            bhxhDaysD: bhxhDaysD.toFixed(1),
+            hocHoiDaysE: hocHoiDaysE.toFixed(1),
+            khacDaysF: khacDaysF.toFixed(1),
+            tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1),
+            tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1),
+            tongCong: tongCong.toFixed(1),
+            note: note,
+            chamCongData: monthChamCongData[nv.id] || { 1: {}, 2: {} }
+          };
+        });
+
+        // Tạo worksheet cho tháng
+        const worksheet = workbook.addWorksheet(`T${month}`);
+        const totalCols = 4 + monthDaysInMonth + 10;
+
+        // 1. HEADER THÔNG TIN BỆNH VIỆN
+        worksheet.mergeCells(1, 1, 1, Math.floor(totalCols / 2));
+        worksheet.getCell(1, 1).value = 'BỆNH VIỆN QUẬN TÂN PHÚ';
+
+        worksheet.mergeCells(1, Math.floor(totalCols / 2) + 1, 1, totalCols);
+        worksheet.getCell(1, Math.floor(totalCols / 2) + 1).value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
+
+        worksheet.mergeCells(2, 1, 2, Math.floor(totalCols / 2));
+        worksheet.getCell(2, 1).value = `PHÒNG ${khoaPhongName}`;
+
+        worksheet.mergeCells(2, Math.floor(totalCols / 2) + 1, 2, totalCols);
+        worksheet.getCell(2, Math.floor(totalCols / 2) + 1).value = 'Độc lập - Tự do - Hạnh phúc';
+
+        // 2. TIÊU ĐỀ BẢNG
+        worksheet.mergeCells(4, Math.floor(totalCols / 2) - 4, 4, Math.floor(totalCols / 2) + 6);
+        worksheet.getCell(4, Math.floor(totalCols / 2) - 4).value = 'BẢNG TỔNG HỢP CHẤM CÔNG';
+
+        worksheet.mergeCells(5, Math.floor(totalCols / 2) - 2, 5, Math.floor(totalCols / 2) + 4);
+        worksheet.getCell(5, Math.floor(totalCols / 2) - 2).value = `THÁNG ${month} NĂM ${selectedYearForExport}`;
+
+        // 3. HEADER CHÍNH (3 dòng)
+        const headerRow = 7;
+
+        worksheet.mergeCells(headerRow, 1, headerRow + 2, 1);
+        worksheet.getCell(headerRow, 1).value = 'STT';
+
+        worksheet.mergeCells(headerRow, 2, headerRow + 2, 2);
+        worksheet.getCell(headerRow, 2).value = 'Họ Tên';
+
+        worksheet.mergeCells(headerRow, 3, headerRow + 2, 3);
+        worksheet.getCell(headerRow, 3).value = 'Ngày tháng năm sinh';
+
+        worksheet.mergeCells(headerRow, 4, headerRow + 2, 4);
+        worksheet.getCell(headerRow, 4).value = 'Khoa/phòng';
+
+        worksheet.mergeCells(headerRow, 5, headerRow, 4 + monthDaysInMonth);
+        worksheet.getCell(headerRow, 5).value = 'NGÀY TRONG THÁNG';
+
+        for (let i = 1; i <= monthDaysInMonth; i++) {
+          worksheet.getCell(headerRow + 1, 4 + i).value = i;
+        }
+
+        for (let i = 1; i <= monthDaysInMonth; i++) {
+          const date = new Date(selectedYearForExport, month - 1, i);
+          const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()];
+          worksheet.getCell(headerRow + 2, 4 + i).value = dayName;
+        }
+
+        const summaryHeaders = [
+          'Số ngày làm việc (A)', 'Ngày nghỉ không làm việc (B)', 'Phép (C)', 'BHXH (D)',
+          'Học/Hội nghị/Tập huấn (E)', 'Khác (F)', 'Tổng ngày làm (A+B)',
+          'Tổng ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú'
+        ];
+
+        summaryHeaders.forEach((header, index) => {
+          const col = 5 + monthDaysInMonth + index;
+          worksheet.mergeCells(headerRow, col, headerRow + 2, col);
+          worksheet.getCell(headerRow, col).value = header;
+        });
+
+        // 4. DỮ LIỆU NHÂN VIÊN
+        let currentRow = headerRow + 3;
+
+        monthSummaryData.forEach((nv, index) => {
+          const employeeData = nv.chamCongData;
+
+          worksheet.mergeCells(currentRow, 1, currentRow + 1, 1);
+          worksheet.getCell(currentRow, 1).value = index + 1;
+
+          worksheet.mergeCells(currentRow, 2, currentRow + 1, 2);
+          worksheet.getCell(currentRow, 2).value = nv.hoTen || 'N/A';
+
+          worksheet.mergeCells(currentRow, 3, currentRow + 1, 3);
+          worksheet.getCell(currentRow, 3).value = nv.ngayThangNamSinh || 'N/A';
+
+          worksheet.mergeCells(currentRow, 4, currentRow + 1, 4);
+          worksheet.getCell(currentRow, 4).value = nv.khoaPhong?.tenKhoaPhong || khoaPhongName;
+
+          for (let day = 1; day <= monthDaysInMonth; day++) {
+            const shift1Symbol = employeeData[1][day] || '-';
+            const shift2Symbol = employeeData[2][day] || '-';
+
+            worksheet.getCell(currentRow, 4 + day).value = shift1Symbol;
+            worksheet.getCell(currentRow + 1, 4 + day).value = shift2Symbol;
+          }
+
+          const summaryValues = [
+            nv.workDaysA, nv.weekendDaysB, nv.phepDaysC, nv.bhxhDaysD,
+            nv.hocHoiDaysE, nv.khacDaysF, nv.tongSoNgayLamAB,
+            nv.tongSoNgayNghiCDEF, nv.tongCong, nv.note
+          ];
+
+          summaryValues.forEach((data, index) => {
+            const col = 5 + monthDaysInMonth + index;
+            worksheet.mergeCells(currentRow, col, currentRow + 1, col);
+            worksheet.getCell(currentRow, col).value = data;
+          });
+
+          currentRow += 2;
+        });
+
+        // 5. STYLING
+        const hospitalTitleStyle = {
+          font: { name: 'Times New Roman', size: 12, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        worksheet.getCell(1, 1).style = hospitalTitleStyle;
+        worksheet.getCell(1, Math.floor(totalCols / 2) + 1).style = hospitalTitleStyle;
+        worksheet.getCell(2, 1).style = hospitalTitleStyle;
+        worksheet.getCell(2, Math.floor(totalCols / 2) + 1).style = hospitalTitleStyle;
+
+        const tableTitleStyle = {
+          font: { name: 'Times New Roman', size: 14, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        worksheet.getCell(4, Math.floor(totalCols / 2) - 4).style = tableTitleStyle;
+        worksheet.getCell(5, Math.floor(totalCols / 2) - 2).style = tableTitleStyle;
+
+        const headerStyle = {
+          font: { name: 'Times New Roman', size: 10, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } },
+          border: {
+            top: { style: 'thin' }, bottom: { style: 'thin' },
+            left: { style: 'thin' }, right: { style: 'thin' }
+          }
+        };
+
+        for (let row = headerRow; row <= headerRow + 2; row++) {
+          for (let col = 1; col <= totalCols; col++) {
+            worksheet.getCell(row, col).style = headerStyle;
+          }
+        }
+
+        const dataStyle = {
+          font: { name: 'Times New Roman', size: 9 },
+          alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+          border: {
+            top: { style: 'thin' }, bottom: { style: 'thin' },
+            left: { style: 'thin' }, right: { style: 'thin' }
+          }
+        };
+
+        const nameStyle = {
+          font: { name: 'Times New Roman', size: 9 },
+          alignment: { horizontal: 'left', vertical: 'middle', wrapText: true },
+          border: {
+            top: { style: 'thin' }, bottom: { style: 'thin' },
+            left: { style: 'thin' }, right: { style: 'thin' }
+          }
+        };
+
+        const dataStartRow = headerRow + 3;
+        const dataEndRow = dataStartRow + monthSummaryData.length * 2 - 1;
+
+        for (let row = dataStartRow; row <= dataEndRow; row++) {
+          for (let col = 1; col <= totalCols; col++) {
+            if (col === 2) {
+              worksheet.getCell(row, col).style = nameStyle;
+            } else if (col === totalCols) {
+              worksheet.getCell(row, col).style = nameStyle;
+            } else {
+              worksheet.getCell(row, col).style = dataStyle;
+            }
+          }
+        }
+
+        // 6. THIẾT LẬP KÍCH THƯỚC CỘT VÀ DÒNG
+        worksheet.getColumn(1).width = 5;
+        worksheet.getColumn(2).width = 25;
+        worksheet.getColumn(3).width = 15;
+        worksheet.getColumn(4).width = 15;
+
+        for (let i = 0; i < monthDaysInMonth; i++) {
+          worksheet.getColumn(5 + i).width = 4;
+        }
+
+        const summaryWidths = [16, 20, 8, 10, 22, 8, 16, 18, 10, 20];
+        summaryWidths.forEach((width, index) => {
+          worksheet.getColumn(5 + monthDaysInMonth + index).width = width;
+        });
+
+        worksheet.getRow(headerRow).height = 30;
+        worksheet.getRow(headerRow + 1).height = 20;
+        worksheet.getRow(headerRow + 2).height = 20;
+
+        for (let i = dataStartRow; i <= dataEndRow; i++) {
+          worksheet.getRow(i).height = 18;
+        }
+
+        // 7. TÔ MÀU CỘT CUỐI TUẦN
+        for (let day = 1; day <= monthDaysInMonth; day++) {
+          const date = new Date(selectedYearForExport, month - 1, day);
+          const dayOfWeek = date.getDay();
+
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            const dayColumn = 4 + day;
+
+            for (let row = headerRow; row <= headerRow + 2; row++) {
+              const cell = worksheet.getCell(row, dayColumn);
+              cell.style = {
+                ...cell.style,
+                fill: {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFE8F5E8' }
+                }
+              };
+            }
+
+            for (let row = dataStartRow; row <= dataEndRow; row++) {
+              const cell = worksheet.getCell(row, dayColumn);
+              cell.style = {
+                ...cell.style,
+                fill: {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFE8F5E8' }
+                }
+              };
+            }
+          }
+        }
+
+        // 8. CHÚ THÍCH KÝ HIỆU (chỉ thêm cho tháng 1)
+        if (month === 1) {
+          let legendStartRow = dataEndRow + 3;
+
+          worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
+          worksheet.mergeCells(legendStartRow, 1, legendStartRow, totalCols);
+
+          const legendTitleStyle = {
+            font: { name: 'Times New Roman', size: 12, bold: true },
+            alignment: { horizontal: 'left', vertical: 'middle' }
+          };
+          worksheet.getCell(legendStartRow, 1).style = legendTitleStyle;
+
+          legendStartRow += 2;
+
+          worksheet.getCell(legendStartRow, 1).value = 'Ký hiệu';
+          worksheet.getCell(legendStartRow, 2).value = 'Ý nghĩa';
+          worksheet.getCell(legendStartRow, 4).value = 'Ký hiệu';
+          worksheet.getCell(legendStartRow, 5).value = 'Ý nghĩa';
+
+          const legendHeaderStyle = {
+            font: { name: 'Times New Roman', size: 10, bold: true },
+            alignment: { horizontal: 'center', vertical: 'middle' },
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } },
+            border: {
+              top: { style: 'thin' }, bottom: { style: 'thin' },
+              left: { style: 'thin' }, right: { style: 'thin' }
+            }
+          };
+
+          [1, 2, 4, 5].forEach(col => {
+            worksheet.getCell(legendStartRow, col).style = legendHeaderStyle;
+          });
+
+          legendStartRow += 1;
+
+          const midPoint = Math.ceil(yearlyKyHieuChamCongs.length / 2);
+          const leftColumn = yearlyKyHieuChamCongs.slice(0, midPoint);
+          const rightColumn = yearlyKyHieuChamCongs.slice(midPoint);
+
+          const legendDataStyle = {
+            font: { name: 'Times New Roman', size: 9 },
+            alignment: { horizontal: 'center', vertical: 'middle' },
+            border: {
+              top: { style: 'thin' }, bottom: { style: 'thin' },
+              left: { style: 'thin' }, right: { style: 'thin' }
+            }
+          };
+
+          const legendDescStyle = {
+            font: { name: 'Times New Roman', size: 9 },
+            alignment: { horizontal: 'left', vertical: 'middle' },
+            border: {
+              top: { style: 'thin' }, bottom: { style: 'thin' },
+              left: { style: 'thin' }, right: { style: 'thin' }
+            }
+          };
+
+          for (let i = 0; i < Math.max(leftColumn.length, rightColumn.length); i++) {
+            const row = legendStartRow + i;
+
+            if (i < leftColumn.length) {
+              worksheet.getCell(row, 1).value = leftColumn[i].maKyHieu;
+              worksheet.getCell(row, 2).value = leftColumn[i].tenKyHieu;
+              worksheet.getCell(row, 1).style = legendDataStyle;
+              worksheet.getCell(row, 2).style = legendDescStyle;
+            }
+
+            if (i < rightColumn.length) {
+              worksheet.getCell(row, 4).value = rightColumn[i].maKyHieu;
+              worksheet.getCell(row, 5).value = rightColumn[i].tenKyHieu;
+              worksheet.getCell(row, 4).style = legendDataStyle;
+              worksheet.getCell(row, 5).style = legendDescStyle;
+            }
+          }
+
+          const specialRow = legendStartRow + Math.max(leftColumn.length, rightColumn.length);
+          worksheet.getCell(specialRow, 1).value = '-';
+          worksheet.getCell(specialRow, 2).value = 'Không có dữ liệu';
+          worksheet.getCell(specialRow, 1).style = legendDataStyle;
+          worksheet.getCell(specialRow, 2).style = legendDescStyle;
+        }
+      }
+
+      // 9. XUẤT FILE
+      const buffer = await workbook.xlsx.writeBuffer();
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      const fileName = `TongHop_ChamCong_Nam${selectedYearForExport}_${timestamp}.xlsx`;
+
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Xuất file Excel tổng hợp năm ${selectedYearForExport} thành công!`);
+    } catch (error) {
+      console.error('Lỗi xuất Excel theo năm:', error);
+      toast.error('Có lỗi xảy ra khi xuất file Excel theo năm!');
+    }
+  };
+
 
   const handleRefresh = () => {
     fetchData(true);
@@ -847,14 +1674,48 @@ function QuanLyBangChamCong() {
             <i className="ri-table-line me-1"></i>
             {showSummary ? 'Xem chi tiết' : 'Xem tổng hợp'}
           </button>
-          <button
-            className="btn btn-success"
-            onClick={exportToExcel}
-            disabled={loading || filteredEmployees.length === 0}
-          >
-            <i className="ri-file-excel-2-line me-1"></i>
-            Xuất Excel
-          </button>
+          {showSummary ? (
+            <div className="d-flex gap-2">
+              <button
+                className="btn btn-success"
+                onClick={exportToExcel}
+                disabled={loading || filteredEmployees.length === 0}
+              >
+                <i className="ri-file-excel-2-line me-1"></i>
+                Xuất Excel
+              </button>
+              <div className="d-flex align-items-center gap-2">
+                <select
+                  className="form-select"
+                  style={{ width: '100px' }}
+                  value={selectedYearForExport}
+                  onChange={(e) => setSelectedYearForExport(parseInt(e.target.value))}
+                >
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const year = new Date().getFullYear() - 2 + i;
+                    return <option key={year} value={year}>{year}</option>;
+                  })}
+                </select>
+                <button
+                  className="btn btn-info"
+                  onClick={exportToExcelYearly}
+                  disabled={loading || filteredEmployees.length === 0}
+                >
+                  <i className="ri-file-excel-2-line me-1"></i>
+                  Xuất Excel theo năm
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="btn btn-success"
+              onClick={exportToExcel}
+              disabled={loading || filteredEmployees.length === 0}
+            >
+              <i className="ri-file-excel-2-line me-1"></i>
+              Xuất Excel
+            </button>
+          )}
         </div>
       </div>
 
