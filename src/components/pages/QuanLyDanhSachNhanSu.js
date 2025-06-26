@@ -14,6 +14,7 @@ function QuanLyDanhSachNhanSu() {
   const [showModal, setShowModal] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [currentNhanVien, setCurrentNhanVien] = useState({
     id: null,
     hoTen: '',
@@ -30,7 +31,7 @@ function QuanLyDanhSachNhanSu() {
   const role = localStorage.getItem('role');
   const khoaPhongId = localStorage.getItem('khoaPhongId');
 
-  // Fetch danh sách nhân viên
+  // Fetch danh sách nhân viên với search
   const fetchNhanViens = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -38,26 +39,28 @@ function QuanLyDanhSachNhanSu() {
       if (role === 'NGUOICHAMCONG') {
         params.khoaPhongId = khoaPhongId;
       }
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
       const response = await axiosInstance.get('/nhanvien', { params });
-      setNhanViens(response.data.content);
-      setTotalPages(response.data.totalPages);
+      setNhanViens(response.data.content || []);
+      setTotalPages(response.data.totalPages || 0);
     } catch (error) {
       console.error('Error fetching nhanviens:', error.response?.data || error.message);
       toast.error(error.response?.data || 'Lỗi khi lấy danh sách nhân viên');
     } finally {
       setIsLoading(false);
     }
-  }, [page, size, role, khoaPhongId]);
+  }, [page, size, role, khoaPhongId, searchTerm]);
 
   // Fetch danh sách khoa/phòng và chức vụ
   const fetchKhoaPhongsAndChucVus = async () => {
-    setIsLoading(true);
     try {
       const khoaPhongRes = await axiosInstance.get('/khoa-phong');
       setKhoaPhongs(khoaPhongRes.data || []);
     } catch (error) {
       console.error('Error fetching khoa-phong:', error.response?.data || error.message);
-      toast.error('Lỗi khi lấy danh sách khoa/phòng: ' + (error.response?.data || error.message));
+      toast.error('Lỗi khi lấy danh sách khoa/phòng');
     }
 
     try {
@@ -65,30 +68,27 @@ function QuanLyDanhSachNhanSu() {
       setChucVus(chucVuRes.data || []);
     } catch (error) {
       console.error('Error fetching chuc-vu:', error.response?.data || error.message);
-      toast.error('Lỗi khi lấy danh sách chức vụ: ' + (error.response?.data || error.message));
-    } finally {
-      setIsLoading(false);
+      toast.error('Lỗi khi lấy danh sách chức vụ');
     }
   };
 
   useEffect(() => {
     fetchNhanViens();
-    fetchKhoaPhongsAndChucVus();
   }, [fetchNhanViens]);
 
-  // CẬP NHẬT: Hàm validate và prepare payload
+  useEffect(() => {
+    fetchKhoaPhongsAndChucVus();
+  }, []);
+
   const preparePayload = () => {
-    // Format ngày sinh thành chuỗi dd/MM/yyyy
     const formattedNgaySinh = currentNhanVien.ngayThangNamSinh
       ? format(currentNhanVien.ngayThangNamSinh, 'dd/MM/yyyy')
       : null;
 
-    // CẬP NHẬT: Xử lý mã NV - nếu rỗng hoặc chỉ có khoảng trắng thì gửi null
     const processedMaNV = currentNhanVien.maNV && currentNhanVien.maNV.trim() 
       ? currentNhanVien.maNV.trim() 
       : null;
 
-    // CẬP NHẬT: Xử lý số điện thoại - nếu rỗng hoặc chỉ có khoảng trắng thì gửi null
     const processedSDT = currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim() 
       ? currentNhanVien.soDienThoai.trim() 
       : null;
@@ -96,17 +96,15 @@ function QuanLyDanhSachNhanSu() {
     return {
       hoTen: currentNhanVien.hoTen.trim(),
       email: currentNhanVien.email.trim(),
-      maNV: processedMaNV, // Có thể là null
+      maNV: processedMaNV,
       ngayThangNamSinh: formattedNgaySinh,
-      soDienThoai: processedSDT, // Có thể là null
+      soDienThoai: processedSDT,
       khoaPhong: { id: currentNhanVien.khoaPhong.id },
       chucVu: currentNhanVien.chucVu.id ? { id: currentNhanVien.chucVu.id } : null,
     };
   };
 
-  // CẬP NHẬT: Validation đơn giản hơn
   const validateForm = () => {
-    // Kiểm tra các trường bắt buộc
     if (!currentNhanVien.hoTen || !currentNhanVien.hoTen.trim()) {
       toast.error('Vui lòng nhập họ tên');
       return false;
@@ -122,14 +120,12 @@ function QuanLyDanhSachNhanSu() {
       return false;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(currentNhanVien.email.trim())) {
       toast.error('Email không hợp lệ');
       return false;
     }
 
-    // CẬP NHẬT: Validate mã NV chỉ khi có nhập
     if (currentNhanVien.maNV && currentNhanVien.maNV.trim()) {
       const maNV = currentNhanVien.maNV.trim();
       if (maNV.length < 2) {
@@ -142,7 +138,6 @@ function QuanLyDanhSachNhanSu() {
       }
     }
 
-    // CẬP NHẬT: Validate số điện thoại chỉ khi có nhập
     if (currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim()) {
       const sdt = currentNhanVien.soDienThoai.trim();
       const phoneRegex = /^[0-9+\-\s()]+$/;
@@ -159,16 +154,12 @@ function QuanLyDanhSachNhanSu() {
     return true;
   };
 
-  // CẬP NHẬT: Xử lý thêm/sửa nhân viên
   const handleSaveNhanVien = async () => {
     if (!validateForm()) {
       return;
     }
 
     const payload = preparePayload();
-    
-    console.log('Payload gửi đi:', payload); // Debug log
-
     setIsLoading(true);
     try {
       if (isEdit) {
@@ -188,7 +179,6 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
-  // Xử lý xóa nhân viên
   const handleDeleteNhanVien = async (id) => {
     if (window.confirm('Bạn có chắc muốn xóa nhân viên này?')) {
       setIsLoading(true);
@@ -205,11 +195,9 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
-  // CẬP NHẬT: Xử lý mở modal thêm/sửa
   const openModal = (nhanVien = null) => {
     setIsEdit(!!nhanVien);
     if (nhanVien) {
-      // Parse ngày sinh từ chuỗi dd/MM/yyyy thành Date
       const parsedDate = nhanVien.ngayThangNamSinh
         ? parse(nhanVien.ngayThangNamSinh, 'dd/MM/yyyy', new Date())
         : null;
@@ -218,7 +206,6 @@ function QuanLyDanhSachNhanSu() {
         ngayThangNamSinh: parsedDate,
         khoaPhong: { id: nhanVien.khoaPhong?.id || '' },
         chucVu: { id: nhanVien.chucVu?.id || '' },
-        // CẬP NHẬT: Đảm bảo maNV và soDienThoai không bị undefined
         maNV: nhanVien.maNV || '',
         soDienThoai: nhanVien.soDienThoai || '',
       });
@@ -227,9 +214,9 @@ function QuanLyDanhSachNhanSu() {
         id: null,
         hoTen: '',
         email: '',
-        maNV: '', // CẬP NHẬT: Bắt đầu với string rỗng
+        maNV: '',
         ngayThangNamSinh: null,
-        soDienThoai: '', // CẬP NHẬT: Bắt đầu với string rỗng
+        soDienThoai: '',
         khoaPhong: { id: role === 'NGUOICHAMCONG' ? khoaPhongId : '' },
         chucVu: { id: '' },
       });
@@ -237,7 +224,6 @@ function QuanLyDanhSachNhanSu() {
     setShowModal(true);
   };
 
-  // Xử lý thay đổi form
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'khoaPhongId') {
@@ -249,17 +235,14 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
-  // Xử lý thay đổi ngày sinh
   const handleDateChange = (date) => {
     setCurrentNhanVien({ ...currentNhanVien, ngayThangNamSinh: date });
   };
 
-  // Xử lý phân trang
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };
 
-  // Hàm để format ngày
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
@@ -271,212 +254,312 @@ function QuanLyDanhSachNhanSu() {
   };
 
   return (
-    <div className="container mt-4">
-      <h2 className="mb-4">Quản Lý Danh Sách Nhân Sự</h2>
-      {isLoading && (
-        <div className="text-center mb-3">
-          <Spinner animation="border" variant="primary" />
-          <span className="ms-2">Đang tải...</span>
+    <div className="container-fluid px-4 py-3" style={{ backgroundColor: '#f8f9fc', minHeight: '100vh' }}>
+      {/* Header */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 className="h3 mb-1 text-primary fw-bold">
+            <i className="ri-team-line me-2"></i>Quản Lý Nhân Sự
+          </h1>
+          <p className="text-muted mb-0">Quản lý danh sách nhân viên</p>
         </div>
-      )}
-      <Button variant="primary" className="mb-3" onClick={() => openModal()} disabled={isLoading}>
-        Thêm Nhân Viên
-      </Button>
-      <Table striped bordered hover>
-        <thead>
-          <tr>
-            <th>Họ Tên</th>
-            <th>Email</th>
-            <th>Mã NV</th>
-            <th>Ngày Sinh</th>
-            <th>Số Điện Thoại</th>
-            <th>Khoa/Phòng</th>
-            <th>Chức Vụ</th>
-            <th>Hành Động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {nhanViens.length === 0 && !isLoading ? (
-            <tr>
-              <td colSpan="8" className="text-center">
-                Không có dữ liệu nhân viên
-              </td>
-            </tr>
+        <button 
+          className="btn btn-primary" 
+          onClick={() => openModal()} 
+          disabled={isLoading}
+        >
+          Thêm Nhân Viên
+        </button>
+      </div>
+
+      {/* Tìm kiếm */}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body">
+          <div className="row align-items-end">
+            <div className="col-md-4">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Tìm kiếm theo tên, email, mã NV..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bảng danh sách */}
+      <div className="card border-0 shadow-sm">
+        <div className="card-body p-0">
+          {isLoading ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Đang tải...</span>
+              </div>
+            </div>
+          ) : nhanViens.length > 0 ? (
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead style={{ backgroundColor: '#4e73df', color: 'white' }}>
+                  <tr>
+                    <th className="text-center py-3">STT</th>
+                    <th className="py-3">Họ Tên</th>
+                    <th className="py-3">Email</th>
+                    <th className="py-3">Mã NV</th>
+                    <th className="py-3">Ngày Sinh</th>
+                    <th className="py-3">SĐT</th>
+                    <th className="py-3">Khoa/Phòng</th>
+                    <th className="py-3">Chức Vụ</th>
+                    <th className="text-center py-3">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nhanViens.map((nv, index) => (
+                    <tr key={nv.id} className="border-bottom">
+                      <td className="text-center align-middle py-3">{page * size + index + 1}</td>
+                      <td className="align-middle py-3 fw-semibold">{nv.hoTen}</td>
+                      <td className="align-middle py-3">{nv.email}</td>
+                      <td className="align-middle py-3">
+                        {nv.maNV ? (
+                          <span className="badge bg-primary" style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                            {nv.maNV}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="align-middle py-3">{formatDate(nv.ngayThangNamSinh)}</td>
+                      <td className="align-middle py-3">{nv.soDienThoai || '-'}</td>
+                      <td className="align-middle py-3">
+                        <span className="badge bg-info" style={{ fontSize: '0.85em' }}>
+                          {nv.khoaPhong?.tenKhoaPhong || '-'}
+                        </span>
+                      </td>
+                      <td className="align-middle py-3">
+                        {nv.chucVu?.tenChucVu ? (
+                          <span className="badge bg-success" style={{ fontSize: '0.85em' }}>
+                            {nv.chucVu.tenChucVu}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="text-center align-middle py-3">
+                        <button
+                          className="btn btn-warning btn-sm me-2"
+                          onClick={() => openModal(nv)}
+                          disabled={isLoading}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDeleteNhanVien(nv.id)}
+                          disabled={isLoading}
+                        >
+                          Xóa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            nhanViens.map((nv) => (
-              <tr key={nv.id}>
-                <td>{nv.hoTen}</td>
-                <td>{nv.email}</td>
-                <td>{nv.maNV || '-'}</td>
-                <td>{formatDate(nv.ngayThangNamSinh)}</td>
-                <td>{nv.soDienThoai || '-'}</td>
-                <td>{nv.khoaPhong?.tenKhoaPhong || '-'}</td>
-                <td>{nv.chucVu?.tenChucVu || '-'}</td>
-                <td>
-                  <Button
-                    variant="warning"
-                    className="me-2"
-                    onClick={() => openModal(nv)}
-                    disabled={isLoading}
-                  >
-                    Sửa
-                  </Button>
-                  <Button
-                    variant="danger"
-                    onClick={() => handleDeleteNhanVien(nv.id)}
-                    disabled={isLoading}
-                  >
-                    Xóa
-                  </Button>
-                </td>
-              </tr>
-            ))
+            <div className="text-center py-5">
+              <p className="text-muted">
+                {searchTerm ? `Không tìm thấy nhân viên với từ khóa "${searchTerm}"` : 'Không có nhân viên nào'}
+              </p>
+            </div>
           )}
-        </tbody>
-      </Table>
+        </div>
+      </div>
 
       {/* Phân trang */}
-      <Pagination>
-        {Array.from({ length: totalPages }, (_, i) => (
-          <Pagination.Item key={i} active={i === page} onClick={() => handlePageChange(i)}>
-            {i + 1}
-          </Pagination.Item>
-        ))}
-      </Pagination>
+      {totalPages > 1 && (
+        <div className="mt-3">
+          <nav aria-label="Page navigation">
+            <ul className="pagination justify-content-center">
+              <li className={`page-item ${page === 0 ? 'disabled' : ''}`}>
+                <button className="page-link" onClick={() => handlePageChange(page - 1)}>Trước</button>
+              </li>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <li key={i} className={`page-item ${page === i ? 'active' : ''}`}>
+                  <button className="page-link" onClick={() => handlePageChange(i)}>{i + 1}</button>
+                </li>
+              ))}
+              <li className={`page-item ${page === totalPages - 1 ? 'disabled' : ''}`}>
+                <button className="page-link" onClick={() => handlePageChange(page + 1)}>Sau</button>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      )}
 
       {/* Modal thêm/sửa nhân viên */}
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
-          <Modal.Title>{isEdit ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên'}</Modal.Title>
+          <Modal.Title className="text-primary fw-semibold">
+            {isEdit ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên'}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Họ Tên <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="text"
-                name="hoTen"
-                value={currentNhanVien.hoTen}
-                onChange={handleChange}
-                required
-                placeholder="Nhập họ tên"
-                disabled={isLoading}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Email <span className="text-danger">*</span></Form.Label>
-              <Form.Control
-                type="email"
-                name="email"
-                value={currentNhanVien.email}
-                onChange={handleChange}
-                required
-                placeholder="Nhập email"
-                disabled={isLoading}
-              />
-            </Form.Group>
-            {/* CẬP NHẬT: Mã NV có thể để trống */}
-            <Form.Group className="mb-3">
-              <Form.Label>
-                Mã NV 
-                <small className="text-muted ms-2">(Tùy chọn - có thể để trống)</small>
-              </Form.Label>
-              <Form.Control
-                type="text"
-                name="maNV"
-                value={currentNhanVien.maNV}
-                onChange={handleChange}
-                placeholder="Nhập mã nhân viên (hoặc để trống)"
-                disabled={isLoading}
-                maxLength={50}
-              />
-              <Form.Text className="text-muted">
-                Nếu không nhập, hệ thống sẽ để trống mã nhân viên
-              </Form.Text>
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Ngày Sinh</Form.Label>
-              <DatePicker
-                selected={currentNhanVien.ngayThangNamSinh}
-                onChange={handleDateChange}
-                dateFormat="dd/MM/yyyy"
-                className="form-control"
-                placeholderText="dd/MM/yyyy"
-                disabled={isLoading}
-                showYearDropdown
-                yearDropdownItemNumber={100}
-                scrollableYearDropdown
-                maxDate={new Date()} // Không cho chọn ngày tương lai
-              />
-            </Form.Group>
-            {/* CẬP NHẬT: Số điện thoại có thể để trống */}
-            <Form.Group className="mb-3">
-              <Form.Label>
-                Số Điện Thoại
-                <small className="text-muted ms-2">(Tùy chọn)</small>
-              </Form.Label>
-              <Form.Control
-                type="text"
-                name="soDienThoai"
-                value={currentNhanVien.soDienThoai}
-                onChange={handleChange}
-                placeholder="Nhập số điện thoại (hoặc để trống)"
-                disabled={isLoading}
-                maxLength={15}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Khoa/Phòng <span className="text-danger">*</span></Form.Label>
-              {role === 'NGUOICHAMCONG' ? (
-                <Form.Control
-                  type="text"
-                  value={khoaPhongs.find((kp) => kp.id === Number(khoaPhongId))?.tenKhoaPhong || 'N/A'}
-                  disabled
-                />
-              ) : (
-                <Form.Select
-                  name="khoaPhongId"
-                  value={currentNhanVien.khoaPhong.id}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading || khoaPhongs.length === 0}
-                >
-                  <option value="">Chọn Khoa/Phòng</option>
-                  {khoaPhongs.map((kp) => (
-                    <option key={kp.id} value={kp.id}>
-                      {kp.tenKhoaPhong}
-                    </option>
-                  ))}
-                </Form.Select>
-              )}
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>
-                Chức Vụ
-                <small className="text-muted ms-2">(Tùy chọn)</small>
-              </Form.Label>
-              <Form.Select
-                name="chucVuId"
-                value={currentNhanVien.chucVu.id}
-                onChange={handleChange}
-                disabled={isLoading || chucVus.length === 0}
-              >
-                <option value="">Chọn Chức Vụ</option>
-                {chucVus.map((cv) => (
-                  <option key={cv.id} value={cv.id}>
-                    {cv.tenChucVu}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
+            <div className="row">
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Họ Tên <span className="text-danger">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="hoTen"
+                    value={currentNhanVien.hoTen}
+                    onChange={handleChange}
+                    placeholder="Nhập họ tên"
+                    disabled={isLoading}
+                    required
+                  />
+                </Form.Group>
+              </div>
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Email <span className="text-danger">*</span>
+                  </Form.Label>
+                  <Form.Control
+                    type="email"
+                    name="email"
+                    value={currentNhanVien.email}
+                    onChange={handleChange}
+                    placeholder="Nhập email"
+                    disabled={isLoading}
+                    required
+                  />
+                </Form.Group>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Mã NV <small className="text-muted">(tùy chọn)</small>
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="maNV"
+                    value={currentNhanVien.maNV}
+                    onChange={handleChange}
+                    placeholder="Nhập mã nhân viên"
+                    disabled={isLoading}
+                    maxLength={50}
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                </Form.Group>
+              </div>
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Số Điện Thoại <small className="text-muted">(tùy chọn)</small>
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="soDienThoai"
+                    value={currentNhanVien.soDienThoai}
+                    onChange={handleChange}
+                    placeholder="Nhập số điện thoại"
+                    disabled={isLoading}
+                    maxLength={15}
+                  />
+                </Form.Group>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">Ngày Sinh</Form.Label>
+                  <DatePicker
+                    selected={currentNhanVien.ngayThangNamSinh}
+                    onChange={handleDateChange}
+                    dateFormat="dd/MM/yyyy"
+                    className="form-control"
+                    placeholderText="Chọn ngày sinh"
+                    disabled={isLoading}
+                    showYearDropdown
+                    yearDropdownItemNumber={100}
+                    scrollableYearDropdown
+                    maxDate={new Date()}
+                  />
+                </Form.Group>
+              </div>
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Khoa/Phòng <span className="text-danger">*</span>
+                  </Form.Label>
+                  {role === 'NGUOICHAMCONG' ? (
+                    <Form.Control
+                      type="text"
+                      value={khoaPhongs.find((kp) => kp.id === Number(khoaPhongId))?.tenKhoaPhong || 'N/A'}
+                      disabled
+                      className="bg-light"
+                    />
+                  ) : (
+                    <Form.Select
+                      name="khoaPhongId"
+                      value={currentNhanVien.khoaPhong.id}
+                      onChange={handleChange}
+                      disabled={isLoading || khoaPhongs.length === 0}
+                      required
+                    >
+                      <option value="">Chọn Khoa/Phòng</option>
+                      {khoaPhongs.map((kp) => (
+                        <option key={kp.id} value={kp.id}>
+                          {kp.tenKhoaPhong}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  )}
+                </Form.Group>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="col-md-6">
+                <Form.Group className="mb-3">
+                  <Form.Label className="fw-semibold">
+                    Chức Vụ <small className="text-muted">(tùy chọn)</small>
+                  </Form.Label>
+                  <Form.Select
+                    name="chucVuId"
+                    value={currentNhanVien.chucVu.id}
+                    onChange={handleChange}
+                    disabled={isLoading || chucVus.length === 0}
+                  >
+                    <option value="">Chọn Chức Vụ</option>
+                    {chucVus.map((cv) => (
+                      <option key={cv.id} value={cv.id}>
+                        {cv.tenChucVu}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </div>
+            </div>
           </Form>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)} disabled={isLoading}>
-            Đóng
+            Hủy
           </Button>
           <Button variant="primary" onClick={handleSaveNhanVien} disabled={isLoading}>
-            {isLoading ? 'Đang lưu...' : 'Lưu'}
+            {isLoading ? 'Đang lưu...' : (isEdit ? 'Cập nhật' : 'Lưu')}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -484,4 +567,4 @@ function QuanLyDanhSachNhanSu() {
   );
 }
 
-export default QuanLyDanhSachNhanSu;  
+export default QuanLyDanhSachNhanSu;

@@ -144,12 +144,12 @@ function QuanLyBangChamCong() {
           absentNotes.push(`Học/Hội: ${day} (ca chiều)`);
         }
 
-        // F. Khác (tất cả các loại khác: DL, NB, Co, Ts, Ds, KH, NT, N, No)
-        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift1Symbol)) {
+        // F. Khác (tất cả các loại khác: DL, NB, Co, Ts, Ds, KH, NT, N, No, K)
+        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift1Symbol)) {
           khacDaysF += 0.5;
           absentNotes.push(`Khác (${shift1Symbol}): ${day} (ca sáng)`);
         }
-        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift2Symbol)) {
+        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift2Symbol)) {
           khacDaysF += 0.5;
           absentNotes.push(`Khác (${shift2Symbol}): ${day} (ca chiều)`);
         }
@@ -436,6 +436,7 @@ function QuanLyBangChamCong() {
       'Hn': { bg: '#6610f2', color: '#fff' },
       'Hct': { bg: '#6610f2', color: '#fff' },
       'NB': { bg: '#cce5ff', color: '#000' },
+      'K': { bg: '#fd7e14', color: '#fff' },
       '-': { bg: '#ffffff', color: '#6c757d' },
     };
 
@@ -1275,8 +1276,8 @@ function QuanLyBangChamCong() {
             if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) hocHoiDaysE += 0.5;
             if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) hocHoiDaysE += 0.5;
 
-            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift1Symbol)) khacDaysF += 0.5;
-            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No'].includes(shift2Symbol)) khacDaysF += 0.5;
+            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift1Symbol)) khacDaysF += 0.5;
+            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift2Symbol)) khacDaysF += 0.5;
           }
 
           const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC;

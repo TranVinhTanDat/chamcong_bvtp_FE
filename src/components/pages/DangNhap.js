@@ -6,7 +6,7 @@ import logoTanPhu from '../../components/assets/images/logo tan phu_hinh.png';
 
 function DangNhap() {
   const [credentials, setCredentials] = useState({ tenDangNhap: '', matKhau: '' });
-  const [isLoading, setIsLoading] = useState(false); // Thêm trạng thái loading
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,16 +26,40 @@ function DangNhap() {
     try {
       console.log('Attempting login with:', credentials);
       const response = await axiosInstance.post('/auth/dangnhap', credentials);
-      console.log('Login response:', response.data); // Log phản hồi
+      console.log('Login response:', response.data);
+      
       const { accessToken, refreshToken, role, id, khoaPhongId } = response.data;
 
-      // Lưu vào localStorage
+      // Lưu thông tin cơ bản vào localStorage
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('role', role);
       localStorage.setItem('userId', id);
       localStorage.setItem('khoaPhongId', khoaPhongId);
-      console.log('Token saved:', { accessToken, role, khoaPhongId });
+      
+      // Lưu username từ form đăng nhập
+      localStorage.setItem('tenDangNhap', credentials.tenDangNhap);
+      
+      console.log('Token saved:', { accessToken, role, khoaPhongId, tenDangNhap: credentials.tenDangNhap });
+
+      try {
+        // Gọi API để lấy thông tin chi tiết user (bao gồm tên khoa phòng)
+        const userProfileResponse = await axiosInstance.get('/user/current');
+        const userProfile = userProfileResponse.data;
+        
+        // Lưu thêm thông tin chi tiết nếu có
+        if (userProfile.tenKhoaPhong) {
+          localStorage.setItem('tenKhoaPhong', userProfile.tenKhoaPhong);
+        }
+        if (userProfile.hoTen) {
+          localStorage.setItem('hoTen', userProfile.hoTen);
+        }
+        
+        console.log('User profile loaded:', userProfile);
+      } catch (profileError) {
+        console.warn('Could not load user profile:', profileError);
+        // Không làm gián đoạn quá trình đăng nhập nếu không lấy được profile
+      }
 
       toast.success('Đăng nhập thành công!');
       navigate('/', { replace: true });

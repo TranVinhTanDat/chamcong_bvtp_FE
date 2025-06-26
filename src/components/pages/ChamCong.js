@@ -405,6 +405,7 @@ function ChamCong() {
   };
 
   // Handle attendance action
+  // Cập nhật trong hàm handleChamCong khi trangThai === 'NGHỈ'
   const handleChamCong = async (nhanVienId, trangThai, shift) => {
     const validNhanVienId = parseInt(nhanVienId);
     if (!validNhanVienId || isNaN(validNhanVienId)) {
@@ -434,11 +435,15 @@ function ChamCong() {
       // Set ca làm việc mặc định cho modal nghỉ
       const defaultCaId = selectedCaLamViec[`${validNhanVienId}_${shift}`] || '';
 
+      // *** THÊM MỚI: Tự động chọn N1 làm ký hiệu mặc định ***
+      const defaultKyHieuN1 = kyHieuChamCongs.find(kh => kh.maKyHieu === 'N1');
+      const defaultKyHieuChamCong = defaultKyHieuN1 ? defaultKyHieuN1.maKyHieu : '';
+
       setFormData((prev) => ({
         ...prev,
         nhanVienId: validNhanVienId,
         trangThai,
-        kyHieuChamCong: '',
+        kyHieuChamCong: defaultKyHieuChamCong, // *** TỰ ĐỘNG CHỌN N1 ***
         ghiChu: '',
         caLamViecId: defaultCaId,
       }));
@@ -448,7 +453,7 @@ function ChamCong() {
       return;
     }
 
-    // Handle 'LÀM' case
+    // Handle 'LÀM' case (giữ nguyên logic cũ)
     let caLamViecId = selectedCaLamViec[`${validNhanVienId}_${shift}`];
 
     // Auto-select default ca if none selected

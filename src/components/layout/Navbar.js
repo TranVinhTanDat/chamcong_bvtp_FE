@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import ChangePasswordModal from '../modals/ChangePasswordModal';
 import UserProfileModal from '../modals/UserProfileModal';
+import logoTanPhu from '../assets/images/logo tan phu_hinh.png';
 
 function Navbar() {
   const navigate = useNavigate();
@@ -122,11 +123,31 @@ function Navbar() {
       <div className="container-fluid px-4">
         {/* Logo/Brand */}
         <Link className="navbar-brand d-flex align-items-center" to="/">
-          <img
-            src="http://benhvientanphu.vn/Image/Picture/Logo/logo.png"
-            alt="Logo Bệnh viện Tân Phú"
-            style={{ maxWidth: '180px', height: 'auto' }}
-          />
+          <div className="d-flex align-items-center">
+            {/* Logo */}
+            <img
+              src={logoTanPhu}
+              alt="Logo Bệnh viện Quận Tân Phú"
+              className="me-3"
+              style={{ 
+                height: '50px', 
+                width: 'auto',
+                objectFit: 'contain'
+              }}
+            />
+            
+            {/* Hospital Name */}
+            <div className="d-none d-md-block">
+              <div className="hospital-name">
+                <div className="hospital-main-name">
+                  BỆNH VIỆN QUẬN TÂN PHÚ
+                </div>
+                <div className="hospital-sub-name">
+                  Hệ thống Chấm công
+                </div>
+              </div>
+            </div>
+          </div>
         </Link>
 
         {/* Right Side Items */}
@@ -211,6 +232,53 @@ function Navbar() {
         isOpen={showUserProfileModal}
         onClose={() => setShowUserProfileModal(false)}
       />
+
+      {/* Custom CSS for Hospital Name */}
+      <style jsx>{`
+        .hospital-name {
+          line-height: 1.2;
+        }
+        
+        .hospital-main-name {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #2c5aa0;
+          letter-spacing: 0.5px;
+          margin-bottom: 2px;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .hospital-sub-name {
+          font-size: 0.8rem;
+          font-weight: 500;
+          color: #6c757d;
+          letter-spacing: 0.3px;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 991px) {
+          .hospital-name {
+            display: none;
+          }
+        }
+        
+        @media (max-width: 767px) {
+          .navbar-brand img {
+            height: 40px !important;
+          }
+        }
+        
+        /* Hover effect */
+        .navbar-brand:hover .hospital-main-name {
+          color: #1a4d8c;
+          transition: color 0.2s ease;
+        }
+        
+        .navbar-brand:hover .hospital-sub-name {
+          color: #495057;
+          transition: color 0.2s ease;
+        }
+      `}</style>
     </nav>
   );
 }
