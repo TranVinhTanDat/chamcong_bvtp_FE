@@ -302,7 +302,7 @@ function QuanLyBangChamCong() {
           }
         });
 
-        // Xử lý từng nhóm (nhân viên + ngày)
+        // *** LOGIC CHÍNH: Xử lý từng nhóm (nhân viên + ngày) ***
         Object.keys(groupedRecords).forEach((dateKey) => {
           const records = groupedRecords[dateKey];
           const [nhanVienId, day] = dateKey.split('_');
@@ -314,7 +314,7 @@ function QuanLyBangChamCong() {
               chamCongMap[nhanVienIdNum] = { 1: {}, 2: {} };
             }
 
-            // Sắp xếp theo thời gian (cũ nhất đầu tiên)
+            // *** QUAN TRỌNG: Sắp xếp theo thời gian (cũ nhất đầu tiên) ***
             records.sort((a, b) => {
               const parseDate = (dateStr) => {
                 if (!dateStr) return new Date();
@@ -325,35 +325,68 @@ function QuanLyBangChamCong() {
               return new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn));
             });
 
-            // Gán shift theo thứ tự: bản ghi đầu tiên = shift 1, bản ghi thứ 2 = shift 2
+            // *** LOGIC ĐỒNG BỘ: Gán shift theo thứ tự tuần tự ***
             records.forEach((record, index) => {
               if (index < 2) { // Chỉ xử lý 2 bản ghi đầu tiên
                 const shift = index + 1; // index 0 -> shift 1, index 1 -> shift 2
 
-                // Xác định ký hiệu hiển thị
+                // *** LOGIC XÁC ĐỊNH KÝ HIỆU HIỂN THỊ ***
                 let symbol = '-';
                 if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong) {
-                  // Trạng thái NGHỈ
+                  // Trạng thái NGHỈ - hiển thị ký hiệu chấm công
                   symbol = record.kyHieuChamCong.maKyHieu || 'N';
                 } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec) {
-                  // Trạng thái LÀM
+                  // Trạng thái LÀM - hiển thị ký hiệu ca làm việc
                   symbol = record.caLamViec.kyHieuChamCong?.maKyHieu || 'X';
                 }
 
+                // Gán ký hiệu vào map
                 chamCongMap[nhanVienIdNum][shift][dayNum] = symbol;
+
+                // Debug logging
+                console.log(`Employee ${nhanVienIdNum}, Day ${dayNum}, Shift ${shift}: ${symbol}`, {
+                  trangThaiId: record.trangThaiChamCong?.id,
+                  kyHieuChamCong: record.kyHieuChamCong?.maKyHieu,
+                  caLamViecKyHieu: record.caLamViec?.kyHieuChamCong?.maKyHieu,
+                  thoiGian: record.thoiGianCheckIn
+                });
               }
             });
           }
         });
+
+        // *** LOGGING TỔNG QUAN ***
+        console.log('QuanLyBangChamCong - Processed attendance data:', {
+          totalRecords: chamCongResponse.data.content?.length || 0,
+          groupedRecords: Object.keys(groupedRecords).length,
+          processedEmployees: Object.keys(chamCongMap).length,
+          sampleData: Object.keys(chamCongMap).slice(0, 3).map(id => ({
+            employeeId: id,
+            shift1Data: Object.keys(chamCongMap[id]?.[1] || {}).length,
+            shift2Data: Object.keys(chamCongMap[id]?.[2] || {}).length
+          }))
+        });
       }
 
+      // *** QUAN TRỌNG: Lọc dữ liệu để chỉ hiển thị nhân viên có trong danh sách ***
       const filteredChamCongData = Object.keys(chamCongMap).reduce((acc, nhanVienId) => {
         if (nhanVienData.some(nv => nv.id === parseInt(nhanVienId))) {
           acc[nhanVienId] = chamCongMap[nhanVienId];
         }
         return acc;
       }, {});
+
       setChamCongData(filteredChamCongData);
+
+      console.log('QuanLyBangChamCong - Processed attendance data:', {
+        totalRecords: chamCongResponse.data.content?.length || 0,
+        processedEmployees: Object.keys(chamCongMap).length,
+        sampleData: Object.keys(chamCongMap).slice(0, 3).map(id => ({
+          employeeId: id,
+          shift1Data: Object.keys(chamCongMap[id]?.[1] || {}).length,
+          shift2Data: Object.keys(chamCongMap[id]?.[2] || {}).length
+        }))
+      });
 
       if (showNoDataToast && Object.keys(filteredChamCongData).length === 0 && nhanVienData.length > 0) {
         toast.warn('Không có dữ liệu chấm công cho tháng này.');
