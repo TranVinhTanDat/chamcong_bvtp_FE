@@ -78,7 +78,8 @@ function QuanLyBangChamCong() {
     return date.getDay() === 0 || date.getDay() === 6; // Chủ nhật = 0, Thứ 7 = 6
   };
 
-  // Tính toán dữ liệu tổng hợp cho từng nhân viên
+  // *** SỬA CUỐI CÙNG CHO HÀM calculateSummaryData ***
+
   const calculateSummaryData = useCallback(() => {
     const summary = filteredEmployees.map(nv => {
       const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
@@ -90,9 +91,9 @@ function QuanLyBangChamCong() {
       let workDaysA = 0; // Số ngày làm việc (A) - mỗi ca = 0.5
       let weekendDaysB = 0; // Những ngày nghỉ không làm việc (B) - ký hiệu "N1"
       let phepDaysC = 0; // Phép (C) - PN, PC, PT
-      let bhxhDaysD = 0; // BHXH (D) - chỉ Bo (bản thân ốm)
+      let bhxhDaysD = 0; // BHXH (D) - TẤT CẢ ký hiệu BHXH: Bo, Co, Ts, Ds, KH, NT
       let hocHoiDaysE = 0; // Học, Hội nghị (E) - H, Hn, Hct
-      let khacDaysF = 0; // Khác (F) - các loại khác
+      let khacDaysF = 0; // Khác (F) - các loại còn lại
       let absentNotes = [];
 
       // Duyệt qua từng ngày trong tháng
@@ -129,14 +130,14 @@ function QuanLyBangChamCong() {
           absentNotes.push(`Phép: ${day} (ca chiều)`);
         }
 
-        // D. BHXH (chỉ Bo - bản thân ốm)
-        if (shift1Symbol === 'Bo') {
+        // D. BHXH (TẤT CẢ các ký hiệu BHXH: Bo, Co, Ts, Ds, KH, NT)
+        if (['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'].includes(shift1Symbol)) {
           bhxhDaysD += 0.5;
-          absentNotes.push(`BHXH (bản thân ốm): ${day} (ca sáng)`);
+          absentNotes.push(`BHXH (${shift1Symbol}): ${day} (ca sáng)`);
         }
-        if (shift2Symbol === 'Bo') {
+        if (['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'].includes(shift2Symbol)) {
           bhxhDaysD += 0.5;
-          absentNotes.push(`BHXH (bản thân ốm): ${day} (ca chiều)`);
+          absentNotes.push(`BHXH (${shift2Symbol}): ${day} (ca chiều)`);
         }
 
         // E. Học, Hội nghị (H, Hn, Hct)
@@ -149,26 +150,26 @@ function QuanLyBangChamCong() {
           absentNotes.push(`Học/Hội: ${day} (ca chiều)`);
         }
 
-        // F. Khác (tất cả các loại khác: DL, NB, Co, Ts, Ds, KH, NT, N, No, K)
-        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift1Symbol)) {
+        // F. Khác (các loại còn lại: DL, NB, N, No, K)
+        if (['DL', 'NB', 'N', 'No', 'K'].includes(shift1Symbol)) {
           khacDaysF += 0.5;
           absentNotes.push(`Khác (${shift1Symbol}): ${day} (ca sáng)`);
         }
-        if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift2Symbol)) {
+        if (['DL', 'NB', 'N', 'No', 'K'].includes(shift2Symbol)) {
           khacDaysF += 0.5;
           absentNotes.push(`Khác (${shift2Symbol}): ${day} (ca chiều)`);
         }
       }
 
       // *** UPDATED: Tính toán theo yêu cầu mới ***
-      // Tổng số ngày làm (A+B) = bao gồm cả phép vì "có nghỉ phép thì vẫn cộng vào"
-      const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC; // A + B + C (phép)
+      // Tổng số ngày làm (A+B) = A + B + C (bao gồm cả phép)
+      const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC; // A + B + C
 
-      // Tổng số ngày nghỉ (C+D+E+F) = giữ nguyên cách tính cũ, hiển thị bình thường
+      // Tổng số ngày nghỉ (C+D+E+F) = tất cả các loại nghỉ
       const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // C + D + E + F
 
-      // Tổng cộng = Tổng số ngày làm (A+B) - bao gồm cả phép
-      const tongCong = tongSoNgayLamAB;
+      // *** FIX: Tổng cộng = A + B + C + D + E + F (tất cả các ngày có lý do) ***
+      const tongCong = workDaysA + weekendDaysB + phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF;
 
       // Tạo ghi chú đơn giản
       const noteArray = [];
@@ -182,7 +183,7 @@ function QuanLyBangChamCong() {
       }
 
       if (bhxhDaysD > 0) {
-        noteArray.push(`- BHXH (bản thân ốm): ${bhxhDaysD.toFixed(1)}`);
+        noteArray.push(`- BHXH: ${bhxhDaysD.toFixed(1)}`);  // ✅ FIXED: Ghi chú BHXH đúng
       }
 
       if (hocHoiDaysE > 0) {
@@ -200,18 +201,36 @@ function QuanLyBangChamCong() {
         workDaysA: workDaysA.toFixed(1),
         weekendDaysB: weekendDaysB.toFixed(1), // Chỉ N1
         phepDaysC: phepDaysC.toFixed(1),
-        bhxhDaysD: bhxhDaysD.toFixed(1),
+        bhxhDaysD: bhxhDaysD.toFixed(1),  // ✅ FIXED: Bao gồm tất cả BHXH
         hocHoiDaysE: hocHoiDaysE.toFixed(1),
-        khacDaysF: khacDaysF.toFixed(1),
-        tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1), // A + B + C (bao gồm phép)
-        tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1), // C + D + E + F (giữ nguyên)
-        tongCong: tongCong.toFixed(1), // = tongSoNgayLamAB
+        khacDaysF: khacDaysF.toFixed(1),  // ✅ FIXED: Chỉ còn DL, NB, N, No, K
+        tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1), // A + B + C
+        tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1), // C + D + E + F
+        tongCong: tongCong.toFixed(1), // *** FIXED: A + B + C + D + E + F ***
         note
       };
     });
 
     return summary;
   }, [filteredEmployees, chamCongData, daysInMonth]);
+
+  // *** DEBUGGING: Log để kiểm tra logic đã fix ***
+  console.log('🎯 FINAL BHXH CALCULATION FIXED:', {
+    note: 'All BHXH symbols now properly categorized',
+    logic: {
+      A: 'Work days (X, VT, RT, S, C, T, T12, T16, CT) - 0.5 per shift',
+      B: 'Non-working rest days (N1) - 0.5 per shift',
+      C: 'Leave days (PN, PC, PT) - 0.5 per shift',
+      D: '✅ BHXH (Bo, Co, Ts, Ds, KH, NT) - 0.5 per shift', // ✅ FIXED
+      E: 'Training/Meeting (H, Hn, Hct) - 0.5 per shift',
+      F: '✅ Others (DL, NB, N, No, K) - 0.5 per shift', // ✅ FIXED
+      'Tổng số ngày làm (A+B)': 'A + B + C (includes authorized leave)',
+      'Tổng số ngày nghỉ (C+D+E+F)': 'C + D + E + F (all types of leave)',
+      'Tổng cộng': 'A + B + C + D + E + F (ALL justified attendance)'
+    },
+    bhxhSymbols: ['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'],
+    otherSymbols: ['DL', 'NB', 'N', 'No', 'K']
+  });
 
   // DEBUGGING: Log để kiểm tra
   console.log('Summary calculation updated:', {
@@ -267,82 +286,105 @@ function QuanLyBangChamCong() {
         return;
       }
 
-      // *** LOAD TẤT CẢ DỮ LIỆU CHẤM CÔNG (không phân trang) ***
+      // *** FIX: LOAD TẤT CẢ DỮ LIỆU CHẤM CÔNG ***
       console.log('🔄 Loading attendance data for:', {
         year: selectedYear,
         month: selectedMonth,
         khoaPhongId: khoaPhongIdToUse
       });
 
-      const chamCongResponse = await axiosInstance.get('/chamcong/lichsu', {
+      // STEP 1: Load page đầu tiên để biết tổng số records
+      const firstPageResponse = await axiosInstance.get('/chamcong/lichsu', {
         params: {
           year: selectedYear,
           month: selectedMonth,
           khoaPhongId: khoaPhongIdToUse,
           page: 0,
-          size: 2000, // *** TĂNG SIZE LÊN ĐỂ LẤY HẾT DỮ LIỆU ***
+          size: 100, // Tăng size để giảm số page cần load
         },
       });
 
-      console.log('📊 API Response:', {
-        totalElements: chamCongResponse.data.totalElements,
-        totalPages: chamCongResponse.data.totalPages,
-        currentPage: chamCongResponse.data.number,
-        size: chamCongResponse.data.size,
-        recordsReceived: chamCongResponse.data.content?.length || 0
+      console.log('📊 First Page Response:', {
+        totalElements: firstPageResponse.data.totalElements,
+        totalPages: firstPageResponse.data.totalPages,
+        currentPageSize: firstPageResponse.data.size,
+        recordsInFirstPage: firstPageResponse.data.content?.length || 0
       });
 
-      // *** NẾU CÓ NHIỀU TRANG, LOAD TẤT CẢ ***
-      let allRecords = chamCongResponse.data.content || [];
-      const totalPages = chamCongResponse.data.totalPages || 1;
+      // STEP 2: Tính toán và load tất cả pages
+      let allRecords = firstPageResponse.data.content || [];
+      const totalPages = firstPageResponse.data.totalPages || 1;
+      const totalElements = firstPageResponse.data.totalElements || 0;
 
+      console.log(`📄 Total pages to load: ${totalPages} (${totalElements} total records)`);
+
+      // Load remaining pages nếu có
       if (totalPages > 1) {
-        console.log(`📄 Loading ${totalPages} pages of data...`);
+        const pageLoadPromises = [];
 
         for (let page = 1; page < totalPages; page++) {
-          try {
-            const additionalResponse = await axiosInstance.get('/chamcong/lichsu', {
+          pageLoadPromises.push(
+            axiosInstance.get('/chamcong/lichsu', {
               params: {
                 year: selectedYear,
                 month: selectedMonth,
                 khoaPhongId: khoaPhongIdToUse,
                 page: page,
-                size: 2000,
+                size: 100,
               },
-            });
+            })
+          );
+        }
 
-            allRecords = [...allRecords, ...(additionalResponse.data.content || [])];
-            console.log(`📑 Loaded page ${page + 1}/${totalPages}, total records: ${allRecords.length}`);
-          } catch (error) {
-            console.error(`Error loading page ${page}:`, error);
-          }
+        // Load tất cả pages parallel
+        try {
+          const allPagesResponses = await Promise.all(pageLoadPromises);
+
+          allPagesResponses.forEach((response, index) => {
+            const pageRecords = response.data.content || [];
+            allRecords = [...allRecords, ...pageRecords];
+            console.log(`📑 Loaded page ${index + 2}/${totalPages}: ${pageRecords.length} records`);
+          });
+        } catch (error) {
+          console.error('Error loading some pages:', error);
+          toast.warning('Một số trang dữ liệu không thể tải được, kết quả có thể không đầy đủ');
         }
       }
 
-      console.log(`✅ Total records loaded: ${allRecords.length}`);
+      console.log(`✅ FINAL: Loaded ${allRecords.length}/${totalElements} records`);
+
+      if (allRecords.length < totalElements) {
+        toast.warning(`Chỉ tải được ${allRecords.length}/${totalElements} bản ghi. Dữ liệu có thể không đầy đủ.`);
+      }
 
       const chamCongMap = {};
 
-      // *** XỬ LÝ DỮ LIỆU ĐƠN GIẢN VÀ HIỆU QUẢ ***
+      // *** XỬ LÝ DỮ LIỆU GIỐNG NHU TRƯỚC ***
       if (allRecords && Array.isArray(allRecords)) {
         console.log('🔄 Processing attendance records...');
 
         // Nhóm theo nhân viên ID trước
         const groupedByEmployee = {};
 
-        allRecords.forEach((record) => {
-          if (!record.nhanVien || !record.nhanVien.id || record.nhanVien.trangThai !== 1) {
-            return;
+        allRecords.forEach((record, recordIndex) => {
+          try {
+            if (!record.nhanVien || !record.nhanVien.id || record.nhanVien.trangThai !== 1) {
+              return;
+            }
+
+            const employeeId = record.nhanVien.id;
+
+            if (!groupedByEmployee[employeeId]) {
+              groupedByEmployee[employeeId] = [];
+            }
+
+            groupedByEmployee[employeeId].push(record);
+          } catch (error) {
+            console.error(`Error processing record ${recordIndex}:`, error, record);
           }
-
-          const employeeId = record.nhanVien.id;
-
-          if (!groupedByEmployee[employeeId]) {
-            groupedByEmployee[employeeId] = [];
-          }
-
-          groupedByEmployee[employeeId].push(record);
         });
+
+        console.log(`👥 Grouped records for ${Object.keys(groupedByEmployee).length} employees`);
 
         // Xử lý từng nhân viên
         Object.keys(groupedByEmployee).forEach((employeeId) => {
@@ -432,14 +474,16 @@ function QuanLyBangChamCong() {
 
       setChamCongData(filteredChamCongData);
 
-      // *** DETAILED LOGGING ***
+      // *** ENHANCED LOGGING ***
       console.log('🎯 FINAL PROCESSING RESULTS:', {
         totalRawRecords: allRecords.length,
+        expectedRecords: totalElements,
         employeesInSystem: nhanVienData.length,
         employeesWithData: Object.keys(filteredChamCongData).length,
         month: selectedMonth,
         year: selectedYear,
         daysInMonth: daysInMonth,
+        dataCompletenessPercentage: Math.round((allRecords.length / Math.max(totalElements, 1)) * 100),
         sampleEmployeeData: Object.keys(filteredChamCongData).slice(0, 3).reduce((sample, empId) => {
           const empData = filteredChamCongData[empId];
           const employee = nhanVienData.find(nv => nv.id === parseInt(empId));
@@ -452,9 +496,10 @@ function QuanLyBangChamCong() {
             shift1Days,
             shift2Days,
             totalDays: shift1Days + shift2Days,
+            maxPossibleDays: daysInMonth * 2,
+            completeness: `${Math.round(((shift1Days + shift2Days) / (daysInMonth * 2)) * 100)}%`,
             shift1Sample: Object.entries(empData[1] || {}).slice(0, 5),
-            shift2Sample: Object.entries(empData[2] || {}).slice(0, 5),
-            completeness: `${Math.round(((shift1Days + shift2Days) / (daysInMonth * 2)) * 100)}%`
+            shift2Sample: Object.entries(empData[2] || {}).slice(0, 5)
           };
           return sample;
         }, {})
@@ -463,6 +508,17 @@ function QuanLyBangChamCong() {
       // Hiển thị thông báo nếu cần
       if (showNoDataToast && Object.keys(filteredChamCongData).length === 0 && nhanVienData.length > 0) {
         toast.warn('Không có dữ liệu chấm công cho tháng này.');
+      } else if (Object.keys(filteredChamCongData).length > 0) {
+        const avgCompleteness = Object.values(filteredChamCongData).reduce((acc, empData) => {
+          const totalDays = Object.keys(empData[1] || {}).length + Object.keys(empData[2] || {}).length;
+          return acc + (totalDays / (daysInMonth * 2));
+        }, 0) / Object.keys(filteredChamCongData).length * 100;
+
+        console.log(`📈 Average data completeness: ${avgCompleteness.toFixed(1)}%`);
+
+        if (avgCompleteness < 50) {
+          toast.warning(`Dữ liệu chấm công chưa đầy đủ (${avgCompleteness.toFixed(1)}% hoàn thành)`);
+        }
       }
 
       // Load ký hiệu nếu chưa có
@@ -483,6 +539,36 @@ function QuanLyBangChamCong() {
       setLoading(false);
     }
   }, [userKhoaPhongId, userRole, selectedKhoaPhongId, selectedMonth, selectedYear, daysInMonth, kyHieuChamCongs.length]);
+
+  // *** THÊM FUNCTION ĐỂ VERIFY API RESPONSE ***
+  window.verifyApiData = async () => {
+    try {
+      const response = await axiosInstance.get('/chamcong/lichsu', {
+        params: {
+          year: selectedYear,
+          month: selectedMonth,
+          khoaPhongId: selectedKhoaPhongId || userKhoaPhongId,
+          page: 0,
+          size: 10
+        }
+      });
+
+      console.group('🔍 API Verification');
+      console.log('API URL:', response.config.url);
+      console.log('Parameters:', response.config.params);
+      console.log('Total Elements:', response.data.totalElements);
+      console.log('Total Pages:', response.data.totalPages);
+      console.log('Current Page:', response.data.number);
+      console.log('Page Size:', response.data.size);
+      console.log('Records in this page:', response.data.content?.length);
+      console.log('First record sample:', response.data.content?.[0]);
+      console.groupEnd();
+
+      return response.data;
+    } catch (error) {
+      console.error('API verification failed:', error);
+    }
+  };
 
   // *** THÊM HELPER FUNCTION ĐỂ TEST DỮ LIỆU CỤ THỂ ***
   const testSpecificEmployee = (maNV) => {

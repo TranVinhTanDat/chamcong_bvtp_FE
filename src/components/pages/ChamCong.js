@@ -39,6 +39,129 @@ function ChamCong() {
   const [editingChamCong, setEditingChamCong] = useState(null);
   const [selectedShift, setSelectedShift] = useState(null); // Track which shift is being processed
 
+  // *** THÊM MỚI: States cho tính năng sửa chấm công hàng loạt (ADMIN) ***
+  const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
+  const [bulkUpdateData, setBulkUpdateData] = useState({
+    khoaPhongId: '',
+    trangThai: 'LÀM',
+    shift: 1,
+    caLamViecId: '',
+    kyHieuChamCong: '',
+    ghiChu: ''
+  });
+  const [bulkUpdateLoading, setBulkUpdateLoading] = useState(false);
+
+
+  // *** THÊM MỚI: Xử lý sửa chấm công hàng loạt cho ADMIN ***
+  const handleBulkUpdate = (trangThai, shift) => {
+    // Chỉ ADMIN mới được phép
+    if (userRole !== 'ADMIN') {
+      toast.error('Chỉ ADMIN mới có quyền sửa chấm công hàng loạt!');
+      return;
+    }
+
+    // Kiểm tra khoa phòng
+    let targetKhoaPhongId = filterKhoaPhongId;
+
+    if (!targetKhoaPhongId) {
+      toast.error('Vui lòng chọn khoa phòng trước khi sửa chấm công hàng loạt!');
+      return;
+    }
+
+    // Thiết lập ca làm việc mặc định
+    const caSang = caLamViecs.find(ca => ca.id === 11);
+    const caChieu = caLamViecs.find(ca => ca.id === 12);
+    const defaultCaId = shift === 1 ?
+      (caSang ? caSang.id.toString() : caLamViecs[0]?.id?.toString()) :
+      (caChieu ? caChieu.id.toString() : caLamViecs[0]?.id?.toString());
+
+    // Thiết lập ký hiệu mặc định cho nghỉ
+    const defaultKyHieuN1 = kyHieuChamCongs.find(kh => kh.maKyHieu === 'N1');
+
+    setBulkUpdateData({
+      khoaPhongId: targetKhoaPhongId.toString(),
+      trangThai,
+      shift,
+      caLamViecId: defaultCaId || '',
+      kyHieuChamCong: trangThai === 'NGHỈ' ? (defaultKyHieuN1?.maKyHieu || '') : '',
+      ghiChu: ''
+    });
+
+    setIsBulkUpdateModalOpen(true);
+  };
+
+  const handleBulkUpdateSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!bulkUpdateData.khoaPhongId || !bulkUpdateData.caLamViecId) {
+      toast.error('Vui lòng chọn khoa phòng và ca làm việc!');
+      return;
+    }
+
+    if (bulkUpdateData.trangThai === 'NGHỈ' && !bulkUpdateData.kyHieuChamCong) {
+      toast.error('Vui lòng chọn ký hiệu chấm công cho trạng thái nghỉ!');
+      return;
+    }
+
+    setBulkUpdateLoading(true);
+
+    try {
+      const currentFilterDate = (filterYear && filterMonth && filterDay)
+        ? formatDateForAPI(filterYear, filterMonth, filterDay)
+        : null;
+
+      const payload = {
+        khoaPhongId: Number(bulkUpdateData.khoaPhongId),
+        trangThai: bulkUpdateData.trangThai,
+        shift: bulkUpdateData.shift,
+        caLamViecId: bulkUpdateData.caLamViecId,
+        filterDate: currentFilterDate,
+        ...(bulkUpdateData.trangThai === 'NGHỈ' && {
+          maKyHieuChamCong: bulkUpdateData.kyHieuChamCong,
+          ghiChu: bulkUpdateData.ghiChu
+        })
+      };
+
+      console.log('Bulk update payload:', payload);
+
+      const response = await axiosInstance.put('/chamcong/update-bulk', payload);
+
+      // Hiển thị kết quả chi tiết
+      const result = response.data;
+      toast.success(result.message || 'Cập nhật hàng loạt thành công!');
+
+      if (result.chiTietThatBai && result.chiTietThatBai.length > 0) {
+        console.warn('Một số nhân viên không thể cập nhật:', result.chiTietThatBai);
+        toast.warning(`${result.soLuongThatBai} nhân viên không thể cập nhật. Xem console để biết chi tiết.`);
+      }
+
+      // Refresh data
+      setTimeout(async () => {
+        await refreshChamCongData();
+      }, 1000);
+
+      closeBulkUpdateModal();
+    } catch (error) {
+      console.error('Lỗi cập nhật hàng loạt:', error.response?.data);
+      const errorMsg = error.response?.data?.error || error.message || 'Lỗi khi cập nhật hàng loạt';
+      toast.error(errorMsg);
+    } finally {
+      setBulkUpdateLoading(false);
+    }
+  };
+
+  const closeBulkUpdateModal = () => {
+    setIsBulkUpdateModalOpen(false);
+    setBulkUpdateData({
+      khoaPhongId: '',
+      trangThai: 'LÀM',
+      shift: 1,
+      caLamViecId: '',
+      kyHieuChamCong: '',
+      ghiChu: ''
+    });
+  };
+
   // *** THÊM MỚI: States cho tính năng chấm công hàng loạt ***
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkData, setBulkData] = useState({
@@ -96,7 +219,6 @@ function ChamCong() {
   // Determine shift based on time for historical data analysis
   const determineShiftFromTime = (thoiGianCheckIn) => {
     // Vì chúng ta không dùng thời gian để xác định shift nữa,
-    // function này chỉ dùng cho hiển thị trong modal chi tiết
     if (!thoiGianCheckIn) return 1;
 
     const timePart = thoiGianCheckIn.split(' ')[1];
@@ -237,6 +359,17 @@ function ChamCong() {
 
         if (userRole === 'NGUOICHAMCONG') {
           setFilterKhoaPhongId(Number(userKhoaPhongId));
+
+          // *** THÊM MỚI: Fetch thông tin khoa phòng cho NGUOICHAMCONG ***
+          try {
+            const khoaPhongResponse = await axiosInstance.get('/khoa-phong');
+            const userKhoaPhong = khoaPhongResponse.data.find(kp => kp.id === Number(userKhoaPhongId));
+            if (userKhoaPhong) {
+              setKhoaPhongs([userKhoaPhong]); // Chỉ set khoa phòng của user này
+            }
+          } catch (error) {
+            console.error('Lỗi khi tải thông tin khoa phòng:', error);
+          }
         }
 
         if (userRole === 'ADMIN' || userRole === 'NGUOITONGHOP') {
@@ -322,7 +455,7 @@ function ChamCong() {
   const handleBulkChamCong = (trangThai, shift) => {
     // Kiểm tra quyền và khoa phòng
     let targetKhoaPhongId = filterKhoaPhongId;
-    
+
     if (userRole === 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP') {
       targetKhoaPhongId = Number(userKhoaPhongId);
     }
@@ -335,7 +468,7 @@ function ChamCong() {
     // Thiết lập ca làm việc mặc định
     const caSang = caLamViecs.find(ca => ca.id === 11);
     const caChieu = caLamViecs.find(ca => ca.id === 12);
-    const defaultCaId = shift === 1 ? 
+    const defaultCaId = shift === 1 ?
       (caSang ? caSang.id.toString() : caLamViecs[0]?.id?.toString()) :
       (caChieu ? caChieu.id.toString() : caLamViecs[0]?.id?.toString());
 
@@ -356,7 +489,7 @@ function ChamCong() {
 
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!bulkData.khoaPhongId || !bulkData.caLamViecId) {
       toast.error('Vui lòng chọn khoa phòng và ca làm việc!');
       return;
@@ -389,11 +522,11 @@ function ChamCong() {
       console.log('Bulk check-in payload:', payload);
 
       const response = await axiosInstance.post('/chamcong/checkin-bulk', payload);
-      
+
       // Hiển thị kết quả chi tiết
       const result = response.data;
       toast.success(result.message || 'Chấm công hàng loạt thành công!');
-      
+
       if (result.chiTietThatBai && result.chiTietThatBai.length > 0) {
         console.warn('Một số nhân viên không thể chấm công:', result.chiTietThatBai);
         toast.warning(`${result.soLuongThatBai} nhân viên không thể chấm công. Xem console để biết chi tiết.`);
@@ -891,6 +1024,76 @@ function ChamCong() {
           </div>
         </div>
 
+        {userRole === 'ADMIN' && (
+          <div className="mb-4">
+            <div className="card border-warning">
+              <div className="card-header bg-warning text-dark">
+                <h6 className="mb-0">
+                  <i className="ri-edit-box-line me-2"></i>
+                  Sửa chấm công hàng loạt (Chỉ ADMIN)
+                </h6>
+              </div>
+              <div className="card-body">
+                <div className="alert alert-info">
+                  <i className="ri-information-line me-2"></i>
+                  <strong>Lưu ý:</strong> Tính năng này chỉ cập nhật những nhân viên đã chấm công.
+                  Những nhân viên chưa chấm công sẽ được bỏ qua.
+                </div>
+                <div className="row">
+                  <div className="col-md-6">
+                    <h6 className="text-success mb-3">Sửa Ca Sáng (Shift 1)</h6>
+                    <div className="d-flex gap-2 mb-2">
+                      <button
+                        className="btn btn-outline-success"
+                        onClick={() => handleBulkUpdate('LÀM', 1)}
+                        disabled={!filterKhoaPhongId}
+                      >
+                        <i className="ri-edit-line me-1"></i>
+                        Sửa thành LÀM - Ca Sáng
+                      </button>
+                      <button
+                        className="btn btn-outline-danger"
+                        onClick={() => handleBulkUpdate('NGHỈ', 1)}
+                        disabled={!filterKhoaPhongId}
+                      >
+                        <i className="ri-edit-line me-1"></i>
+                        Sửa thành NGHỈ - Ca Sáng
+                      </button>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <h6 className="text-info mb-3">Sửa Ca Chiều (Shift 2)</h6>
+                    <div className="d-flex gap-2 mb-2">
+                      <button
+                        className="btn btn-outline-success"
+                        onClick={() => handleBulkUpdate('LÀM', 2)}
+                        disabled={!filterKhoaPhongId}
+                      >
+                        <i className="ri-edit-line me-1"></i>
+                        Sửa thành LÀM - Ca Chiều
+                      </button>
+                      <button
+                        className="btn btn-outline-danger"
+                        onClick={() => handleBulkUpdate('NGHỈ', 2)}
+                        disabled={!filterKhoaPhongId}
+                      >
+                        <i className="ri-edit-line me-1"></i>
+                        Sửa thành NGHỈ - Ca Chiều
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {!filterKhoaPhongId && (
+                  <div className="alert alert-warning mb-0 mt-2">
+                    <i className="ri-alert-line me-2"></i>
+                    Vui lòng chọn khoa phòng để sử dụng tính năng sửa hàng loạt
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         {loading ? (
           <div className="text-center">
@@ -1062,7 +1265,7 @@ function ChamCong() {
                         value={bulkData.khoaPhongId}
                         onChange={(e) => setBulkData(prev => ({ ...prev, khoaPhongId: e.target.value }))}
                         required
-                        disabled={userRole === 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP'}
+                        disabled={userRole === 'NGUOITONGHOP'} // Chỉ disable cho NGUOITONGHOP, NGUOICHAMCONG vẫn có thể chọn
                       >
                         <option value="">-- Chọn khoa phòng --</option>
                         {khoaPhongs.map((khoaPhong) => (
@@ -1466,10 +1669,167 @@ function ChamCong() {
                 </div>
               </form>
             </div>
+
+
+
           </div>
+
+
+
         </div>
       )}
       {isEditModalOpen && <div className="modal-backdrop fade show"></div>}
+      {/* *** THÊM MỚI: Modal sửa chấm công hàng loạt *** */}
+      <div
+        className={`modal fade ${isBulkUpdateModalOpen ? 'show' : ''}`}
+        style={{ display: isBulkUpdateModalOpen ? 'block' : 'none' }}
+        tabIndex="-1"
+        aria-labelledby="bulkUpdateModalLabel"
+        aria-hidden={!isBulkUpdateModalOpen}
+      >
+        <div className="modal-dialog modal-lg">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title" id="bulkUpdateModalLabel">
+                <i className="ri-edit-box-line me-2"></i>
+                Sửa chấm công hàng loạt - {bulkUpdateData.trangThai} - Ca {bulkUpdateData.shift === 1 ? 'Sáng' : 'Chiều'}
+              </h5>
+              <button type="button" className="btn-close" onClick={closeBulkUpdateModal}></button>
+            </div>
+            <form onSubmit={handleBulkUpdateSubmit}>
+              <div className="modal-body">
+                <div className="alert alert-warning">
+                  <i className="ri-alert-line me-2"></i>
+                  <strong>Cảnh báo:</strong> Tính năng này sẽ SỬA ĐỔI tất cả bản ghi chấm công đã có trong khoa phòng được chọn.
+                  Chỉ những nhân viên đã chấm công cho ca này mới bị ảnh hưởng.
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label htmlFor="bulkUpdateKhoaPhong" className="form-label">
+                        Khoa phòng
+                      </label>
+                      <select
+                        className="form-select"
+                        id="bulkUpdateKhoaPhong"
+                        value={bulkUpdateData.khoaPhongId}
+                        onChange={(e) => setBulkUpdateData(prev => ({ ...prev, khoaPhongId: e.target.value }))}
+                        required
+                      >
+                        <option value="">-- Chọn khoa phòng --</option>
+                        {khoaPhongs.map((khoaPhong) => (
+                          <option key={khoaPhong.id} value={khoaPhong.id}>
+                            {khoaPhong.tenKhoaPhong}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label htmlFor="bulkUpdateCaLamViec" className="form-label">
+                        Ca làm việc
+                      </label>
+                      <select
+                        className="form-select"
+                        id="bulkUpdateCaLamViec"
+                        value={bulkUpdateData.caLamViecId}
+                        onChange={(e) => setBulkUpdateData(prev => ({ ...prev, caLamViecId: e.target.value }))}
+                        required
+                        disabled={caLamViecs.length === 0}
+                      >
+                        <option value="">-- Chọn ca làm việc --</option>
+                        {caLamViecs.map((ca) => (
+                          <option key={ca.id} value={ca.id}>
+                            {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {bulkUpdateData.trangThai === 'NGHỈ' && (
+                  <div className="row">
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label htmlFor="bulkUpdateKyHieuChamCong" className="form-label">
+                          Ký hiệu chấm công
+                        </label>
+                        <select
+                          className="form-select"
+                          id="bulkUpdateKyHieuChamCong"
+                          value={bulkUpdateData.kyHieuChamCong}
+                          onChange={(e) => setBulkUpdateData(prev => ({ ...prev, kyHieuChamCong: e.target.value }))}
+                          required
+                          disabled={kyHieuChamCongs.length === 0}
+                        >
+                          <option value="">-- Chọn ký hiệu chấm công --</option>
+                          {kyHieuChamCongs
+                            .filter((kh) => !caLamViecs.some((ca) => ca.kyHieuChamCong?.maKyHieu === kh.maKyHieu))
+                            .map((kyHieu) => (
+                              <option key={kyHieu.id} value={kyHieu.maKyHieu}>
+                                {kyHieu.tenKyHieu} ({kyHieu.maKyHieu})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label htmlFor="bulkUpdateGhiChu" className="form-label">
+                          Ghi chú <span className="text-muted">(tùy chọn)</span>
+                        </label>
+                        <textarea
+                          className="form-control"
+                          id="bulkUpdateGhiChu"
+                          value={bulkUpdateData.ghiChu}
+                          onChange={(e) => setBulkUpdateData(prev => ({ ...prev, ghiChu: e.target.value }))}
+                          placeholder="Nhập ghi chú chung cho tất cả nhân viên"
+                          rows="3"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="alert alert-danger">
+                  <i className="ri-alert-line me-2"></i>
+                  <strong>Xác nhận SỬA ĐỔI:</strong> Bạn có chắc chắn muốn sửa tất cả bản ghi chấm công thành {bulkUpdateData.trangThai} cho khoa phòng này không?
+                  <br />
+                  <small className="text-muted">Hành động này không thể hoàn tác!</small>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={closeBulkUpdateModal}>
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className={`btn ${bulkUpdateData.trangThai === 'LÀM' ? 'btn-warning' : 'btn-danger'}`}
+                  disabled={bulkUpdateLoading || !bulkUpdateData.khoaPhongId || !bulkUpdateData.caLamViecId || (bulkUpdateData.trangThai === 'NGHỈ' && !bulkUpdateData.kyHieuChamCong)}
+                >
+                  {bulkUpdateLoading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Đang cập nhật...
+                    </>
+                  ) : (
+                    <>
+                      <i className={`ri-${bulkUpdateData.trangThai === 'LÀM' ? 'edit' : 'close'}-line me-1`}></i>
+                      Xác nhận SỬA ĐỔI thành {bulkUpdateData.trangThai}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {isBulkUpdateModalOpen && <div className="modal-backdrop fade show"></div>}
     </div>
   );
 }
