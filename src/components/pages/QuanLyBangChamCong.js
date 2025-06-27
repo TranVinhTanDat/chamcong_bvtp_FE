@@ -27,6 +27,157 @@ function QuanLyBangChamCong() {
 
   const [selectedYearForExport, setSelectedYearForExport] = useState(new Date().getFullYear());
 
+  // *** THÊM STATE CHO CHỈNH SỬA KÝ HIỆU ***
+  const [editingCell, setEditingCell] = useState(null); // { employeeId, day, shift }
+  const [editSymbol, setEditSymbol] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+
+
+  // *** HÀM XỬ LÝ CHỈNH SỬA KÝ HIỆU ***
+  const handleCellClick = (employeeId, day, shift, currentSymbol) => {
+    // Chỉ ADMIN mới được sửa
+    if (userRole !== 'ADMIN') {
+      return;
+    }
+
+    setEditingCell({ employeeId, day, shift });
+    setEditSymbol(currentSymbol);
+    setShowEditModal(true);
+  };
+
+
+  // *** COMPONENT MODAL CHỈNH SỬA ***
+  const EditSymbolModal = () => {
+    if (!showEditModal || !editingCell) return null;
+
+    const employee = filteredEmployees.find(nv => nv.id === editingCell.employeeId);
+    const shiftName = editingCell.shift === 1 ? 'sáng' : 'chiều';
+
+    return (
+      <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">
+                <i className="ri-edit-line me-2"></i>
+                Chỉnh sửa ký hiệu chấm công
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={handleModalClose}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <strong>Nhân viên:</strong> {employee?.hoTen} ({employee?.maNV})
+              </div>
+              <div className="mb-3">
+                <strong>Ngày:</strong> {editingCell.day}/{selectedMonth}/{selectedYear} - Ca {shiftName}
+              </div>
+              <div className="mb-3">
+                <label className="form-label fw-semibold">Ký hiệu chấm công:</label>
+                <select
+                  className="form-select"
+                  value={editSymbol}
+                  onChange={(e) => setEditSymbol(e.target.value)}
+                >
+                  <option value="-">- (Không có dữ liệu)</option>
+                  {kyHieuChamCongs.map(kyHieu => (
+                    <option key={kyHieu.id} value={kyHieu.maKyHieu}>
+                      {kyHieu.maKyHieu} - {kyHieu.tenKyHieu}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="alert alert-info">
+                <i className="ri-information-line me-2"></i>
+                <small>
+                  Thay đổi sẽ được áp dụng ngay lập tức và cập nhật cả bảng tổng hợp.
+                </small>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleModalClose}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSymbolUpdate}
+              >
+                <i className="ri-save-line me-1"></i>
+                Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleSymbolUpdate = async () => {
+    if (!editingCell) return;
+
+    try {
+      const { employeeId, day, shift } = editingCell;
+
+      const response = await axiosInstance.put('/chamcong/update-symbol', {
+        nhanVienId: employeeId,
+        day: day,
+        shift: shift,
+        month: selectedMonth,
+        year: selectedYear,
+        newSymbol: editSymbol
+      });
+
+      // Cập nhật state local
+      setChamCongData(prevData => {
+        const newData = { ...prevData };
+
+        if (!newData[employeeId]) {
+          newData[employeeId] = { 1: {}, 2: {} };
+        }
+
+        // Cập nhật ký hiệu mới
+        newData[employeeId][shift][day] = editSymbol;
+
+        // Nếu ký hiệu là "-", xóa khỏi dữ liệu
+        if (editSymbol === '-') {
+          delete newData[employeeId][shift][day];
+        }
+
+        return newData;
+      });
+
+      // Đóng modal
+      setShowEditModal(false);
+      setEditingCell(null);
+      setEditSymbol('');
+
+      toast.success('Cập nhật ký hiệu chấm công thành công!');
+
+      // Tự động làm mới để đồng bộ dữ liệu từ server
+      setTimeout(() => {
+        fetchData(false);
+      }, 500);
+
+    } catch (error) {
+      console.error('Lỗi khi cập nhật ký hiệu:', error);
+      toast.error(`Lỗi: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  const handleModalClose = () => {
+    setShowEditModal(false);
+    setEditingCell(null);
+    setEditSymbol('');
+  };
+
 
 
   const getKyHieuDescription = (maKyHieu, kyHieuChamCongs) => {
@@ -641,6 +792,31 @@ function QuanLyBangChamCong() {
     );
     setFilteredEmployees(filtered);
   }, [searchTerm, nhanViens]);
+
+
+  // *** CSS STYLES CHO HOVER EFFECT ***
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .attendance-cell-editable:hover {
+        box-shadow: inset 0 0 0 2px #007bff !important;
+        transform: scale(1.05);
+        transition: all 0.1s ease;
+        z-index: 10;
+        position: relative;
+      }
+      
+      .attendance-cell-editable:hover .edit-indicator {
+        opacity: 1 !important;
+        transform: scale(1.2);
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   // Hàm để lấy màu sắc cho ký hiệu
   const getCellStyle = (symbol) => {
@@ -2041,6 +2217,16 @@ function QuanLyBangChamCong() {
         </div>
       </div>
 
+      {/* Thêm thông báo cho ADMIN */}
+      {userRole === 'ADMIN' && (
+        <div className="alert alert-info alert-dismissible fade show mb-3" role="alert">
+          <i className="ri-information-line me-2"></i>
+          <strong>ADMIN:</strong> Bạn có thể click vào ô chấm công để chỉnh sửa ký hiệu.
+          Thay đổi sẽ được đồng bộ trong cả bảng chi tiết và tổng hợp.
+          <button type="button" className="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      )}
+
       <div className="card border-0 shadow-sm">
         <div className="card-body p-0">
           {loading ? (
@@ -2115,7 +2301,6 @@ function QuanLyBangChamCong() {
                             {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
                           </td>
 
-
                           {Array.from({ length: daysInMonth }, (_, day) => {
                             const shift1Symbol = employeeData[1][day + 1] || '-';
                             const shift2Symbol = employeeData[2][day + 1] || '-';
@@ -2123,14 +2308,16 @@ function QuanLyBangChamCong() {
                             return (
                               <td
                                 key={day + 1}
-                                className="text-center align-middle p-1"
+                                className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
                                 style={{
                                   backgroundColor: isWeekendDay ? '#ffe6e6' : '#ffffff',
                                   minWidth: '50px',
                                   fontSize: '10px',
                                   fontWeight: 'bold',
                                   border: '1px solid #dee2e6',
-                                  verticalAlign: 'middle'
+                                  verticalAlign: 'middle',
+                                  cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
+                                  position: 'relative'
                                 }}
                               >
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
@@ -2143,6 +2330,8 @@ function QuanLyBangChamCong() {
                                       borderRadius: '2px',
                                       fontSize: '9px'
                                     }}
+                                    onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 1, shift1Symbol)}
+                                    title={userRole === 'ADMIN' ? 'Click để sửa ca sáng' : ''}
                                   >
                                     {shift1Symbol}
                                   </span>
@@ -2155,10 +2344,27 @@ function QuanLyBangChamCong() {
                                       borderRadius: '2px',
                                       fontSize: '9px'
                                     }}
+                                    onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 2, shift2Symbol)}
+                                    title={userRole === 'ADMIN' ? 'Click để sửa ca chiều' : ''}
                                   >
                                     {shift2Symbol}
                                   </span>
                                 </div>
+                                {userRole === 'ADMIN' && (
+                                  <div
+                                    className="edit-indicator"
+                                    style={{
+                                      position: 'absolute',
+                                      top: '2px',
+                                      right: '2px',
+                                      width: '6px',
+                                      height: '6px',
+                                      backgroundColor: '#007bff',
+                                      borderRadius: '50%',
+                                      opacity: 0.7
+                                    }}
+                                  />
+                                )}
                               </td>
                             );
                           })}
@@ -2246,26 +2452,45 @@ function QuanLyBangChamCong() {
                                 {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
                               </td>
 
-
                               {Array.from({ length: daysInMonth }, (_, day) => {
                                 const shift1Symbol = employeeData[1][day + 1] || '-';
                                 const isWeekendDay = isWeekend(day + 1);
                                 return (
                                   <td
                                     key={day + 1}
-                                    className="text-center align-middle p-1"
+                                    className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
                                     style={{
                                       ...getCellStyle(shift1Symbol),
                                       backgroundColor: isWeekendDay && shift1Symbol === '-' ? '#ffe6e6' : getCellStyle(shift1Symbol).backgroundColor,
                                       minWidth: '30px',
                                       fontSize: '10px',
-                                      fontWeight: 'bold'
+                                      fontWeight: 'bold',
+                                      cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
+                                      position: 'relative'
                                     }}
+                                    onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 1, shift1Symbol)}
+                                    title={userRole === 'ADMIN' ? 'Click để sửa ca sáng' : ''}
                                   >
                                     {shift1Symbol}
+                                    {userRole === 'ADMIN' && (
+                                      <div
+                                        className="edit-indicator"
+                                        style={{
+                                          position: 'absolute',
+                                          top: '1px',
+                                          right: '1px',
+                                          width: '4px',
+                                          height: '4px',
+                                          backgroundColor: '#007bff',
+                                          borderRadius: '50%',
+                                          opacity: 0.7
+                                        }}
+                                      />
+                                    )}
                                   </td>
                                 );
                               })}
+
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f3ff' }}>
                                 {summaryItem?.workDaysA || '0.0'}
                               </td>
@@ -2311,16 +2536,35 @@ function QuanLyBangChamCong() {
                                 return (
                                   <td
                                     key={day + 1}
-                                    className="text-center align-middle p-1"
+                                    className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
                                     style={{
                                       ...getCellStyle(shift2Symbol),
                                       backgroundColor: isWeekendDay && shift2Symbol === '-' ? '#ffe6e6' : getCellStyle(shift2Symbol).backgroundColor,
                                       minWidth: '30px',
                                       fontSize: '10px',
-                                      fontWeight: 'bold'
+                                      fontWeight: 'bold',
+                                      cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
+                                      position: 'relative'
                                     }}
+                                    onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 2, shift2Symbol)}
+                                    title={userRole === 'ADMIN' ? 'Click để sửa ca chiều' : ''}
                                   >
                                     {shift2Symbol}
+                                    {userRole === 'ADMIN' && (
+                                      <div
+                                        className="edit-indicator"
+                                        style={{
+                                          position: 'absolute',
+                                          top: '1px',
+                                          right: '1px',
+                                          width: '4px',
+                                          height: '4px',
+                                          backgroundColor: '#007bff',
+                                          borderRadius: '50%',
+                                          opacity: 0.7
+                                        }}
+                                      />
+                                    )}
                                   </td>
                                 );
                               })}
@@ -2407,6 +2651,9 @@ function QuanLyBangChamCong() {
           </div>
         </div>
       </div>
+
+      {/* *** THÊM MODAL CHỈNH SỬA *** */}
+      <EditSymbolModal />
     </div>
   );
 }
