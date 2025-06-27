@@ -48,11 +48,16 @@ function QuanLyBangChamCong() {
     let absentDayCount = 0;
 
     Object.values(chamCongData).forEach(employeeData => {
-      Object.values(employeeData).forEach(dayStatus => {
-        if (['x', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(dayStatus)) {
-          workDayCount++;
-        } else if (dayStatus !== '-') {
-          absentDayCount++;
+      // Handle both shifts
+      [1, 2].forEach(shift => {
+        if (employeeData[shift]) {
+          Object.values(employeeData[shift]).forEach(dayStatus => {
+            if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(dayStatus)) {
+              workDayCount++;
+            } else if (dayStatus !== '-') {
+              absentDayCount++;
+            }
+          });
         }
       });
     });
@@ -234,6 +239,8 @@ function QuanLyBangChamCong() {
   }, [userRole]);
 
   // Lấy danh sách nhân viên, dữ liệu chấm công và ký hiệu chấm công
+  // *** THAY THẾ HÀM fetchData TRONG QuanLyBangChamCong.js ***
+
   const fetchData = useCallback(async (showNoDataToast = true) => {
     const khoaPhongIdToUse = selectedKhoaPhongId || userKhoaPhongId;
 
@@ -245,6 +252,8 @@ function QuanLyBangChamCong() {
 
     try {
       setLoading(true);
+
+      // Load nhân viên
       const nhanVienResponse = await axiosInstance.get('/nhanvien', {
         params: { khoaPhongId: khoaPhongIdToUse, page: 0, size: 100 },
       });
@@ -254,7 +263,16 @@ function QuanLyBangChamCong() {
 
       if (nhanVienData.length === 0 && showNoDataToast) {
         toast.warn('Không có nhân viên nào trong khoa phòng này.');
+        setLoading(false);
+        return;
       }
+
+      // *** LOAD TẤT CẢ DỮ LIỆU CHẤM CÔNG (không phân trang) ***
+      console.log('🔄 Loading attendance data for:', {
+        year: selectedYear,
+        month: selectedMonth,
+        khoaPhongId: khoaPhongIdToUse
+      });
 
       const chamCongResponse = await axiosInstance.get('/chamcong/lichsu', {
         params: {
@@ -262,115 +280,246 @@ function QuanLyBangChamCong() {
           month: selectedMonth,
           khoaPhongId: khoaPhongIdToUse,
           page: 0,
-          size: 1000,
+          size: 2000, // *** TĂNG SIZE LÊN ĐỂ LẤY HẾT DỮ LIỆU ***
         },
       });
 
+      console.log('📊 API Response:', {
+        totalElements: chamCongResponse.data.totalElements,
+        totalPages: chamCongResponse.data.totalPages,
+        currentPage: chamCongResponse.data.number,
+        size: chamCongResponse.data.size,
+        recordsReceived: chamCongResponse.data.content?.length || 0
+      });
+
+      // *** NẾU CÓ NHIỀU TRANG, LOAD TẤT CẢ ***
+      let allRecords = chamCongResponse.data.content || [];
+      const totalPages = chamCongResponse.data.totalPages || 1;
+
+      if (totalPages > 1) {
+        console.log(`📄 Loading ${totalPages} pages of data...`);
+
+        for (let page = 1; page < totalPages; page++) {
+          try {
+            const additionalResponse = await axiosInstance.get('/chamcong/lichsu', {
+              params: {
+                year: selectedYear,
+                month: selectedMonth,
+                khoaPhongId: khoaPhongIdToUse,
+                page: page,
+                size: 2000,
+              },
+            });
+
+            allRecords = [...allRecords, ...(additionalResponse.data.content || [])];
+            console.log(`📑 Loaded page ${page + 1}/${totalPages}, total records: ${allRecords.length}`);
+          } catch (error) {
+            console.error(`Error loading page ${page}:`, error);
+          }
+        }
+      }
+
+      console.log(`✅ Total records loaded: ${allRecords.length}`);
+
       const chamCongMap = {};
 
-      // *** ĐỒNG BỘ VỚI LOGIC ChamCong.js: Nhóm theo nhân viên và ngày, sau đó gán shift tuần tự ***
-      if (chamCongResponse.data.content && Array.isArray(chamCongResponse.data.content)) {
-        // Nhóm các bản ghi chấm công theo nhân viên và ngày
-        const groupedRecords = {};
+      // *** XỬ LÝ DỮ LIỆU ĐƠN GIẢN VÀ HIỆU QUẢ ***
+      if (allRecords && Array.isArray(allRecords)) {
+        console.log('🔄 Processing attendance records...');
 
-        chamCongResponse.data.content.forEach((record) => {
-          if (record.nhanVien && record.nhanVien.id && record.nhanVien.trangThai === 1) {
+        // Nhóm theo nhân viên ID trước
+        const groupedByEmployee = {};
+
+        allRecords.forEach((record) => {
+          if (!record.nhanVien || !record.nhanVien.id || record.nhanVien.trangThai !== 1) {
+            return;
+          }
+
+          const employeeId = record.nhanVien.id;
+
+          if (!groupedByEmployee[employeeId]) {
+            groupedByEmployee[employeeId] = [];
+          }
+
+          groupedByEmployee[employeeId].push(record);
+        });
+
+        // Xử lý từng nhân viên
+        Object.keys(groupedByEmployee).forEach((employeeId) => {
+          const employeeIdNum = parseInt(employeeId);
+          const employeeRecords = groupedByEmployee[employeeId];
+
+          // Khởi tạo structure
+          chamCongMap[employeeIdNum] = { 1: {}, 2: {} };
+
+          // Nhóm theo ngày
+          const groupedByDay = {};
+
+          employeeRecords.forEach((record) => {
             const thoiGianCheckIn = record.thoiGianCheckIn;
-            let day;
+            if (!thoiGianCheckIn) return;
 
-            if (thoiGianCheckIn) {
-              const [datePart] = thoiGianCheckIn.split(' ');
-              const [dayStr, monthStr, yearStr] = datePart.split('-');
-              day = parseInt(dayStr, 10);
-              const recordMonth = parseInt(monthStr, 10);
-              const recordYear = parseInt(yearStr, 10);
+            const [datePart] = thoiGianCheckIn.split(' ');
+            if (!datePart) return;
 
-              if (recordMonth !== selectedMonth || recordYear !== selectedYear) {
-                return;
-              }
-            } else {
+            const [dayStr, monthStr, yearStr] = datePart.split('-');
+            const day = parseInt(dayStr, 10);
+            const recordMonth = parseInt(monthStr, 10);
+            const recordYear = parseInt(yearStr, 10);
+
+            // Kiểm tra tháng/năm đúng
+            if (recordMonth !== selectedMonth || recordYear !== selectedYear) {
               return;
             }
 
-            const nhanVienId = record.nhanVien.id;
-            const dateKey = `${nhanVienId}_${day}`;
-
-            if (!groupedRecords[dateKey]) {
-              groupedRecords[dateKey] = [];
-            }
-            groupedRecords[dateKey].push(record);
-          }
-        });
-
-        // Xử lý từng nhóm (nhân viên + ngày)
-        Object.keys(groupedRecords).forEach((dateKey) => {
-          const records = groupedRecords[dateKey];
-          const [nhanVienId, day] = dateKey.split('_');
-          const nhanVienIdNum = parseInt(nhanVienId);
-          const dayNum = parseInt(day);
-
-          if (dayNum >= 1 && dayNum <= daysInMonth) {
-            if (!chamCongMap[nhanVienIdNum]) {
-              chamCongMap[nhanVienIdNum] = { 1: {}, 2: {} };
+            // Kiểm tra ngày hợp lệ
+            if (day < 1 || day > daysInMonth) {
+              return;
             }
 
-            // Sắp xếp theo thời gian (cũ nhất đầu tiên)
-            records.sort((a, b) => {
-              const parseDate = (dateStr) => {
-                if (!dateStr) return new Date();
-                const [datePart, timePart] = dateStr.split(' ');
-                const [day, month, year] = datePart.split('-');
-                return new Date(`${year}-${month}-${day}T${timePart}`);
-              };
-              return new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn));
+            if (!groupedByDay[day]) {
+              groupedByDay[day] = [];
+            }
+
+            groupedByDay[day].push(record);
+          });
+
+          // Xử lý từng ngày
+          Object.keys(groupedByDay).forEach((dayStr) => {
+            const day = parseInt(dayStr);
+            const dayRecords = groupedByDay[day];
+
+            // *** SORT THEO THỜI GIAN (cũ nhất đầu tiên) ***
+            dayRecords.sort((a, b) => {
+              const timeA = a.thoiGianCheckIn || '';
+              const timeB = b.thoiGianCheckIn || '';
+              return timeA.localeCompare(timeB);
             });
 
-            // Gán shift theo thứ tự: bản ghi đầu tiên = shift 1, bản ghi thứ 2 = shift 2
-            records.forEach((record, index) => {
-              if (index < 2) { // Chỉ xử lý 2 bản ghi đầu tiên
+            // *** GÁN SHIFT TUẦN TỰ ***
+            dayRecords.forEach((record, index) => {
+              if (index < 2) { // Chỉ lấy 2 bản ghi đầu tiên
                 const shift = index + 1; // index 0 -> shift 1, index 1 -> shift 2
 
-                // Xác định ký hiệu hiển thị
+                // Xác định ký hiệu
                 let symbol = '-';
-                if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong) {
-                  // Trạng thái NGHỈ
-                  symbol = record.kyHieuChamCong.maKyHieu || 'N';
-                } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec) {
-                  // Trạng thái LÀM
-                  symbol = record.caLamViec.kyHieuChamCong?.maKyHieu || 'X';
+                if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong?.maKyHieu) {
+                  // NGHỈ - dùng ký hiệu từ kyHieuChamCong
+                  symbol = record.kyHieuChamCong.maKyHieu;
+                } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec?.kyHieuChamCong?.maKyHieu) {
+                  // LÀM - dùng ký hiệu từ ca làm việc
+                  symbol = record.caLamViec.kyHieuChamCong.maKyHieu;
+                } else if (record.trangThaiChamCong?.id === 1) {
+                  // Fallback cho trạng thái LÀM
+                  symbol = 'X';
                 }
 
-                chamCongMap[nhanVienIdNum][shift][dayNum] = symbol;
+                chamCongMap[employeeIdNum][shift][day] = symbol;
               }
             });
-          }
+          });
         });
       }
 
-      const filteredChamCongData = Object.keys(chamCongMap).reduce((acc, nhanVienId) => {
-        if (nhanVienData.some(nv => nv.id === parseInt(nhanVienId))) {
-          acc[nhanVienId] = chamCongMap[nhanVienId];
+      // *** LỌC CHỈ CÁC NHÂN VIÊN ĐANG ACTIVE ***
+      const filteredChamCongData = {};
+      Object.keys(chamCongMap).forEach((employeeId) => {
+        const employeeIdNum = parseInt(employeeId);
+        if (nhanVienData.some(nv => nv.id === employeeIdNum)) {
+          filteredChamCongData[employeeId] = chamCongMap[employeeId];
         }
-        return acc;
-      }, {});
+      });
+
       setChamCongData(filteredChamCongData);
 
+      // *** DETAILED LOGGING ***
+      console.log('🎯 FINAL PROCESSING RESULTS:', {
+        totalRawRecords: allRecords.length,
+        employeesInSystem: nhanVienData.length,
+        employeesWithData: Object.keys(filteredChamCongData).length,
+        month: selectedMonth,
+        year: selectedYear,
+        daysInMonth: daysInMonth,
+        sampleEmployeeData: Object.keys(filteredChamCongData).slice(0, 3).reduce((sample, empId) => {
+          const empData = filteredChamCongData[empId];
+          const employee = nhanVienData.find(nv => nv.id === parseInt(empId));
+          const shift1Days = Object.keys(empData[1] || {}).length;
+          const shift2Days = Object.keys(empData[2] || {}).length;
+
+          sample[empId] = {
+            name: employee?.hoTen || 'Unknown',
+            maNV: employee?.maNV || 'N/A',
+            shift1Days,
+            shift2Days,
+            totalDays: shift1Days + shift2Days,
+            shift1Sample: Object.entries(empData[1] || {}).slice(0, 5),
+            shift2Sample: Object.entries(empData[2] || {}).slice(0, 5),
+            completeness: `${Math.round(((shift1Days + shift2Days) / (daysInMonth * 2)) * 100)}%`
+          };
+          return sample;
+        }, {})
+      });
+
+      // Hiển thị thông báo nếu cần
       if (showNoDataToast && Object.keys(filteredChamCongData).length === 0 && nhanVienData.length > 0) {
         toast.warn('Không có dữ liệu chấm công cho tháng này.');
       }
 
+      // Load ký hiệu nếu chưa có
       if (kyHieuChamCongs.length === 0) {
-        const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
-        const activeKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
-        setKyHieuChamCongs(activeKyHieuChamCongs);
+        try {
+          const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
+          const activeKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
+          setKyHieuChamCongs(activeKyHieuChamCongs);
+        } catch (error) {
+          console.error('Error loading attendance symbols:', error);
+        }
       }
+
     } catch (error) {
       toast.error(`Lỗi khi tải dữ liệu: ${error.response?.data?.error || error.message || 'Kiểm tra API'}`);
-      console.error('Lỗi chi tiết:', error.response?.data || error);
+      console.error('❌ Error in fetchData:', error);
     } finally {
       setLoading(false);
     }
   }, [userKhoaPhongId, userRole, selectedKhoaPhongId, selectedMonth, selectedYear, daysInMonth, kyHieuChamCongs.length]);
+
+  // *** THÊM HELPER FUNCTION ĐỂ TEST DỮ LIỆU CỤ THỂ ***
+  const testSpecificEmployee = (maNV) => {
+    const employee = filteredEmployees.find(nv => nv.maNV === maNV);
+    if (!employee) {
+      console.error(`❌ Không tìm thấy nhân viên ${maNV}`);
+      return;
+    }
+
+    const employeeData = chamCongData[employee.id];
+
+    console.group(`🔍 Test nhân viên ${maNV} - ${employee.hoTen}`);
+    console.log('Employee ID:', employee.id);
+    console.log('Has data:', !!employeeData);
+
+    if (employeeData) {
+      console.log('Shift 1 data:', employeeData[1]);
+      console.log('Shift 2 data:', employeeData[2]);
+      console.log('Shift 1 days count:', Object.keys(employeeData[1] || {}).length);
+      console.log('Shift 2 days count:', Object.keys(employeeData[2] || {}).length);
+    }
+
+    console.groupEnd();
+  };
+
+  // *** EXPOSE TEST FUNCTION TO WINDOW ***
+  window.testEmployee = testSpecificEmployee;
+
+  // *** THÊM AUTO-TEST CHO TC001 ***
+  useEffect(() => {
+    if (Object.keys(chamCongData).length > 0 && process.env.NODE_ENV === 'development') {
+      // Auto test TC001 when data loads
+      setTimeout(() => {
+        testSpecificEmployee('TC001');
+      }, 1000);
+    }
+  }, [chamCongData, filteredEmployees]);
 
   // Khởi tạo dữ liệu ban đầu
   useEffect(() => {
