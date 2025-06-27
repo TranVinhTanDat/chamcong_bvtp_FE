@@ -406,7 +406,13 @@ function ChamCong() {
           let page = 0;
           let total = 1;
           while (page < total) {
-            const params = { page, size: itemsPerPage, khoaPhongId: filterKhoaPhongId || undefined };
+            // *** SỬA: Thêm điều kiện cho NGUOITONGHOP_1KP ***
+            let khoaPhongParam = filterKhoaPhongId || undefined;
+            if (userRole === 'NGUOITONGHOP_1KP') {
+              khoaPhongParam = Number(userKhoaPhongId);
+            }
+
+            const params = { page, size: itemsPerPage, khoaPhongId: khoaPhongParam };
             const response = await axiosInstance.get('/nhanvien', { params });
             const nhanVienPage = response.data;
             allData = [...allData, ...nhanVienPage.content];

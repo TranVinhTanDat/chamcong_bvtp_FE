@@ -1590,153 +1590,303 @@ function QuanLyBangChamCong() {
 
 
   // Hàm xuất Excel theo năm với 12 tab tháng
+  // *** THAY THẾ HÀM exportToExcelYearly HIỆN TẠI BẰNG PHIÊN BẢN NÀY ***
+
   const exportToExcelYearly = async () => {
     try {
+      // *** KIỂM TRA DỮ LIỆU HIỆN TẠI TRƯỚC KHI BẮT ĐẦU ***
+      if (!filteredEmployees || filteredEmployees.length === 0) {
+        toast.warning('Không có nhân viên nào để xuất Excel theo năm');
+        return;
+      }
+
+      console.log('🔄 Starting yearly Excel export with current employees:', {
+        filteredEmployeesCount: filteredEmployees.length,
+        selectedYear: selectedYearForExport,
+        currentDataMonth: selectedMonth,
+        currentDataYear: selectedYear
+      });
+
       const workbook = new ExcelJS.Workbook();
       const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
-        nhanViens[0]?.khoaPhong?.tenKhoaPhong || 'TC-HCQT';
+        filteredEmployees[0]?.khoaPhong?.tenKhoaPhong || 'TC-HCQT';
 
-      // Lấy danh sách ký hiệu chấm công
-      let yearlyKyHieuChamCongs = [];
-      try {
-        const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
-        yearlyKyHieuChamCongs = kyHieuResponse.data.filter(kyHieu => kyHieu.trangThai);
-      } catch (error) {
-        console.error('Lỗi khi tải ký hiệu chấm công:', error);
-        yearlyKyHieuChamCongs = kyHieuChamCongs || []; // Fallback về biến hiện tại nếu có lỗi
+      // Lấy danh sách ký hiệu chấm công hiện tại
+      const yearlyKyHieuChamCongs = kyHieuChamCongs.length > 0 ? kyHieuChamCongs : [];
+
+      // *** XÁC ĐỊNH NHÂN VIÊN VÀ KHOA PHÒNG TỪ DỮ LIỆU HIỆN TẠI ***
+      const baseEmployees = filteredEmployees; // Sử dụng danh sách nhân viên hiện tại
+      let khoaPhongIdToUse = null;
+
+      if (userRole === 'NGUOITONGHOP_1KP') {
+        khoaPhongIdToUse = Number(userKhoaPhongId);
+      } else if (userRole === 'NGUOITONGHOP' || userRole === 'ADMIN') {
+        khoaPhongIdToUse = selectedKhoaPhongId;
+      } else {
+        khoaPhongIdToUse = Number(userKhoaPhongId);
       }
 
       // Lặp qua 12 tháng
       for (let month = 1; month <= 12; month++) {
+        console.log(`📅 Processing month ${month}/${selectedYearForExport}...`);
+
         // Tính số ngày trong tháng
         const monthDaysInMonth = new Date(selectedYearForExport, month, 0).getDate();
 
-        // Lấy dữ liệu chấm công cho tháng này
+        // *** NẾU LÀ THÁNG HIỆN TẠI, SỬ DỤNG DỮ LIỆU ĐÃ LOAD ***
         let monthChamCongData = {};
-        let monthFilteredEmployees = [];
+        let monthFilteredEmployees = baseEmployees;
 
-        try {
-          const khoaPhongIdToUse = selectedKhoaPhongId || userKhoaPhongId;
+        if (month === selectedMonth && selectedYearForExport === selectedYear) {
+          // *** THÁNG HIỆN TẠI: SỬ DỤNG DỮ LIỆU ĐÃ LOAD ***
+          monthChamCongData = chamCongData;
+          console.log(`✅ Using current data for month ${month}: ${Object.keys(monthChamCongData).length} employees with data`);
+        } else {
+          // *** THÁNG KHÁC: FETCH DỮ LIỆU VỚI LOGIC GIỐNG fetchData ***
+          try {
+            console.log(`🔄 Fetching data for month ${month}...`);
 
-          // Lấy dữ liệu nhân viên
-          const nhanVienResponse = await axiosInstance.get('/nhanvien', {
-            params: { khoaPhongId: khoaPhongIdToUse, page: 0, size: 100 },
-          });
-          monthFilteredEmployees = nhanVienResponse.data.content || [];
-
-          // Lấy dữ liệu chấm công cho tháng
-          const chamCongResponse = await axiosInstance.get('/chamcong/lichsu', {
-            params: {
+            // *** STEP 1: Load page đầu tiên để biết tổng số records ***
+            const chamCongParams = {
               year: selectedYearForExport,
               month: month,
-              khoaPhongId: khoaPhongIdToUse,
               page: 0,
-              size: 1000,
-            },
-          });
+              size: 100, // Tăng size để giảm số page cần load
+            };
 
-          // Xử lý dữ liệu chấm công giống như trong fetchData
-          const chamCongMap = {};
-          if (chamCongResponse.data.content && Array.isArray(chamCongResponse.data.content)) {
-            const groupedRecords = {};
+            if (khoaPhongIdToUse) {
+              chamCongParams.khoaPhongId = khoaPhongIdToUse;
+            }
 
-            chamCongResponse.data.content.forEach((record) => {
-              if (record.nhanVien && record.nhanVien.id && record.nhanVien.trangThai === 1) {
-                const thoiGianCheckIn = record.thoiGianCheckIn;
-                let day;
+            console.log(`📊 Month ${month} API params:`, chamCongParams);
 
-                if (thoiGianCheckIn) {
+            const firstPageResponse = await axiosInstance.get('/chamcong/lichsu', {
+              params: chamCongParams,
+            });
+
+            console.log(`📊 Month ${month} First Page Response:`, {
+              totalElements: firstPageResponse.data.totalElements,
+              totalPages: firstPageResponse.data.totalPages,
+              currentPageSize: firstPageResponse.data.size,
+              recordsInFirstPage: firstPageResponse.data.content?.length || 0
+            });
+
+            // *** STEP 2: Tính toán và load tất cả pages ***
+            let allRecords = firstPageResponse.data.content || [];
+            const totalPages = firstPageResponse.data.totalPages || 1;
+            const totalElements = firstPageResponse.data.totalElements || 0;
+
+            console.log(`📄 Month ${month} - Total pages to load: ${totalPages} (${totalElements} total records)`);
+
+            // Load remaining pages nếu có
+            if (totalPages > 1) {
+              const pageLoadPromises = [];
+
+              for (let page = 1; page < totalPages; page++) {
+                const pageParams = { ...chamCongParams, page: page };
+                pageLoadPromises.push(
+                  axiosInstance.get('/chamcong/lichsu', {
+                    params: pageParams,
+                  })
+                );
+              }
+
+              // Load tất cả pages parallel
+              try {
+                const allPagesResponses = await Promise.all(pageLoadPromises);
+
+                allPagesResponses.forEach((response, index) => {
+                  const pageRecords = response.data.content || [];
+                  allRecords = [...allRecords, ...pageRecords];
+                  console.log(`📑 Month ${month} - Loaded page ${index + 2}/${totalPages}: ${pageRecords.length} records`);
+                });
+              } catch (error) {
+                console.error(`Error loading some pages for month ${month}:`, error);
+                toast.warning(`Một số trang dữ liệu tháng ${month} không thể tải được`);
+              }
+            }
+
+            console.log(`✅ Month ${month} FINAL: Loaded ${allRecords.length}/${totalElements} records`);
+
+            if (allRecords.length < totalElements) {
+              console.warn(`⚠️ Month ${month}: Chỉ tải được ${allRecords.length}/${totalElements} bản ghi`);
+            }
+
+            // *** SỬ DỤNG CÙNG LOGIC XỬ LÝ NHƯ fetchData ***
+            const chamCongMap = {};
+            if (allRecords && Array.isArray(allRecords)) {
+              console.log(`🔄 Month ${month} - Processing ${allRecords.length} attendance records...`);
+
+              // Nhóm theo nhân viên ID trước
+              const groupedByEmployee = {};
+
+              allRecords.forEach((record, recordIndex) => {
+                try {
+                  if (!record.nhanVien || !record.nhanVien.id || record.nhanVien.trangThai !== 1) {
+                    return;
+                  }
+
+                  const employeeId = record.nhanVien.id;
+
+                  if (!groupedByEmployee[employeeId]) {
+                    groupedByEmployee[employeeId] = [];
+                  }
+
+                  groupedByEmployee[employeeId].push(record);
+                } catch (error) {
+                  console.error(`Month ${month} - Error processing record ${recordIndex}:`, error);
+                }
+              });
+
+              console.log(`👥 Month ${month} - Grouped records for ${Object.keys(groupedByEmployee).length} employees`);
+
+              // Xử lý từng nhân viên
+              Object.keys(groupedByEmployee).forEach((employeeId) => {
+                const employeeIdNum = parseInt(employeeId);
+                const employeeRecords = groupedByEmployee[employeeId];
+
+                // Khởi tạo structure
+                chamCongMap[employeeIdNum] = { 1: {}, 2: {} };
+
+                // Nhóm theo ngày
+                const groupedByDay = {};
+
+                employeeRecords.forEach((record) => {
+                  const thoiGianCheckIn = record.thoiGianCheckIn;
+                  if (!thoiGianCheckIn) return;
+
                   const [datePart] = thoiGianCheckIn.split(' ');
+                  if (!datePart) return;
+
                   const [dayStr, monthStr, yearStr] = datePart.split('-');
-                  day = parseInt(dayStr, 10);
+                  const day = parseInt(dayStr, 10);
                   const recordMonth = parseInt(monthStr, 10);
                   const recordYear = parseInt(yearStr, 10);
 
+                  // Kiểm tra tháng/năm đúng
                   if (recordMonth !== month || recordYear !== selectedYearForExport) {
                     return;
                   }
-                } else {
-                  return;
-                }
 
-                const nhanVienId = record.nhanVien.id;
-                const dateKey = `${nhanVienId}_${day}`;
-
-                if (!groupedRecords[dateKey]) {
-                  groupedRecords[dateKey] = [];
-                }
-                groupedRecords[dateKey].push(record);
-              }
-            });
-
-            // Xử lý từng nhóm
-            Object.keys(groupedRecords).forEach((dateKey) => {
-              const records = groupedRecords[dateKey];
-              const [nhanVienId, day] = dateKey.split('_');
-              const nhanVienIdNum = parseInt(nhanVienId);
-              const dayNum = parseInt(day);
-
-              if (dayNum >= 1 && dayNum <= monthDaysInMonth) {
-                if (!chamCongMap[nhanVienIdNum]) {
-                  chamCongMap[nhanVienIdNum] = { 1: {}, 2: {} };
-                }
-
-                records.sort((a, b) => {
-                  const parseDate = (dateStr) => {
-                    if (!dateStr) return new Date();
-                    const [datePart, timePart] = dateStr.split(' ');
-                    const [day, month, year] = datePart.split('-');
-                    return new Date(`${year}-${month}-${day}T${timePart}`);
-                  };
-                  return new Date(parseDate(a.thoiGianCheckIn)) - new Date(parseDate(b.thoiGianCheckIn));
-                });
-
-                records.forEach((record, index) => {
-                  if (index < 2) {
-                    const shift = index + 1;
-                    let symbol = '-';
-                    if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong) {
-                      symbol = record.kyHieuChamCong.maKyHieu || 'N';
-                    } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec) {
-                      symbol = record.caLamViec.kyHieuChamCong?.maKyHieu || 'X';
-                    }
-                    chamCongMap[nhanVienIdNum][shift][dayNum] = symbol;
+                  // Kiểm tra ngày hợp lệ
+                  if (day < 1 || day > monthDaysInMonth) {
+                    return;
                   }
+
+                  if (!groupedByDay[day]) {
+                    groupedByDay[day] = [];
+                  }
+
+                  groupedByDay[day].push(record);
                 });
+
+                // Xử lý từng ngày
+                Object.keys(groupedByDay).forEach((dayStr) => {
+                  const day = parseInt(dayStr);
+                  const dayRecords = groupedByDay[day];
+
+                  // *** SORT THEO THỜI GIAN (cũ nhất đầu tiên) ***
+                  dayRecords.sort((a, b) => {
+                    const timeA = a.thoiGianCheckIn || '';
+                    const timeB = b.thoiGianCheckIn || '';
+                    return timeA.localeCompare(timeB);
+                  });
+
+                  // *** GÁN SHIFT TUẦN TỰ ***
+                  dayRecords.forEach((record, index) => {
+                    if (index < 2) { // Chỉ lấy 2 bản ghi đầu tiên
+                      const shift = index + 1; // index 0 -> shift 1, index 1 -> shift 2
+
+                      // Xác định ký hiệu
+                      let symbol = '-';
+                      if (record.trangThaiChamCong?.id === 2 && record.kyHieuChamCong?.maKyHieu) {
+                        // NGHỈ - dùng ký hiệu từ kyHieuChamCong
+                        symbol = record.kyHieuChamCong.maKyHieu;
+                      } else if (record.trangThaiChamCong?.id === 1 && record.caLamViec?.kyHieuChamCong?.maKyHieu) {
+                        // LÀM - dùng ký hiệu từ ca làm việc
+                        symbol = record.caLamViec.kyHieuChamCong.maKyHieu;
+                      } else if (record.trangThaiChamCong?.id === 1) {
+                        // Fallback cho trạng thái LÀM
+                        symbol = 'X';
+                      }
+
+                      chamCongMap[employeeIdNum][shift][day] = symbol;
+                    }
+                  });
+                });
+              });
+            }
+
+            // *** LỌC CHỈ CÁC NHÂN VIÊN TRONG DANH SÁCH HIỆN TẠI ***
+            monthChamCongData = {};
+            Object.keys(chamCongMap).forEach((employeeId) => {
+              const employeeIdNum = parseInt(employeeId);
+              if (baseEmployees.some(nv => nv.id === employeeIdNum)) {
+                monthChamCongData[employeeId] = chamCongMap[employeeId];
               }
             });
-          }
 
-          monthChamCongData = Object.keys(chamCongMap).reduce((acc, nhanVienId) => {
-            if (monthFilteredEmployees.some(nv => nv.id === parseInt(nhanVienId))) {
-              acc[nhanVienId] = chamCongMap[nhanVienId];
+            console.log(`✅ Month ${month} - Final processed data: ${Object.keys(monthChamCongData).length} employees with data`);
+
+            // *** DEBUGGING: Log sample data cho month khác ***
+            if (Object.keys(monthChamCongData).length > 0) {
+              const sampleEmployeeId = Object.keys(monthChamCongData)[0];
+              const sampleData = monthChamCongData[sampleEmployeeId];
+              const sampleEmployee = baseEmployees.find(nv => nv.id === parseInt(sampleEmployeeId));
+
+              console.log(`🔍 Month ${month} Sample Data:`, {
+                employeeId: sampleEmployeeId,
+                employeeName: sampleEmployee?.hoTen,
+                employeeCode: sampleEmployee?.maNV,
+                shift1Days: Object.keys(sampleData[1] || {}).length,
+                shift2Days: Object.keys(sampleData[2] || {}).length,
+                shift1Sample: Object.entries(sampleData[1] || {}).slice(0, 5),
+                shift2Sample: Object.entries(sampleData[2] || {}).slice(0, 5)
+              });
+            } else {
+              console.warn(`⚠️ Month ${month} - NO DATA after processing ${allRecords.length} records`);
+
+              // Debug: Kiểm tra tại sao không có data
+              if (allRecords.length > 0) {
+                const sampleRecord = allRecords[0];
+                console.log(`🔍 Month ${month} Debug Sample Record:`, {
+                  hasNhanVien: !!sampleRecord.nhanVien,
+                  nhanVienId: sampleRecord.nhanVien?.id,
+                  nhanVienTrangThai: sampleRecord.nhanVien?.trangThai,
+                  thoiGianCheckIn: sampleRecord.thoiGianCheckIn,
+                  isEmployeeInBaseList: baseEmployees.some(nv => nv.id === sampleRecord.nhanVien?.id)
+                });
+              }
             }
-            return acc;
-          }, {});
 
-        } catch (error) {
-          console.error(`Lỗi khi lấy dữ liệu tháng ${month}:`, error);
-          // Tiếp tục với tháng tiếp theo nếu có lỗi
-          monthChamCongData = {};
-          monthFilteredEmployees = [];
+          } catch (error) {
+            console.error(`❌ Error fetching data for month ${month}:`, error);
+            monthChamCongData = {};
+          }
         }
 
-        // Tính toán dữ liệu tổng hợp cho tháng này
+        // *** TÍNH TOÁN DỮ LIỆU TỔNG HỢP SỬ DỤNG CÙNG LOGIC VỚI calculateSummaryData ***
         const monthSummaryData = monthFilteredEmployees.map(nv => {
           const employeeData = monthChamCongData[nv.id] || { 1: {}, 2: {} };
 
-          let workDaysA = 0;
-          let weekendDaysB = 0;
-          let phepDaysC = 0;
-          let bhxhDaysD = 0;
-          let hocHoiDaysE = 0;
-          let khacDaysF = 0;
+          // Validate employeeData structure
+          if (!employeeData[1]) employeeData[1] = {};
+          if (!employeeData[2]) employeeData[2] = {};
 
+          let workDaysA = 0; // Số ngày làm việc (A) - mỗi ca = 0.5
+          let weekendDaysB = 0; // Những ngày nghỉ không làm việc (B) - ký hiệu "N1"
+          let phepDaysC = 0; // Phép (C) - PN, PC, PT
+          let bhxhDaysD = 0; // BHXH (D) - TẤT CẢ ký hiệu BHXH: Bo, Co, Ts, Ds, KH, NT
+          let hocHoiDaysE = 0; // Học, Hội nghị (E) - H, Hn, Hct
+          let khacDaysF = 0; // Khác (F) - các loại còn lại
+
+          // Duyệt qua từng ngày trong tháng
           for (let day = 1; day <= monthDaysInMonth; day++) {
             const shift1Symbol = employeeData[1][day] || '-';
             const shift2Symbol = employeeData[2][day] || '-';
 
-            // Tính toán theo logic hiện tại
+            // A. Số ngày làm việc (mỗi ca = 0.5, 1 ngày = 1.0)
+            // Các ký hiệu làm việc: X, VT, RT, S, C, T, T12, T16, CT
             if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) {
               workDaysA += 0.5;
             }
@@ -1744,25 +1894,51 @@ function QuanLyBangChamCong() {
               workDaysA += 0.5;
             }
 
-            if (shift1Symbol === 'N1') weekendDaysB += 0.5;
-            if (shift2Symbol === 'N1') weekendDaysB += 0.5;
+            // B. Những ngày nghỉ không làm việc - ký hiệu "N1"
+            if (shift1Symbol === 'N1') {
+              weekendDaysB += 0.5;
+            }
+            if (shift2Symbol === 'N1') {
+              weekendDaysB += 0.5;
+            }
 
-            if (['PN', 'PC', 'PT'].includes(shift1Symbol)) phepDaysC += 0.5;
-            if (['PN', 'PC', 'PT'].includes(shift2Symbol)) phepDaysC += 0.5;
+            // C. Phép (PN, PC, PT)
+            if (['PN', 'PC', 'PT'].includes(shift1Symbol)) {
+              phepDaysC += 0.5;
+            }
+            if (['PN', 'PC', 'PT'].includes(shift2Symbol)) {
+              phepDaysC += 0.5;
+            }
 
-            if (shift1Symbol === 'Bo') bhxhDaysD += 0.5;
-            if (shift2Symbol === 'Bo') bhxhDaysD += 0.5;
+            // D. BHXH (TẤT CẢ các ký hiệu BHXH: Bo, Co, Ts, Ds, KH, NT)
+            if (['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'].includes(shift1Symbol)) {
+              bhxhDaysD += 0.5;
+            }
+            if (['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'].includes(shift2Symbol)) {
+              bhxhDaysD += 0.5;
+            }
 
-            if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) hocHoiDaysE += 0.5;
-            if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) hocHoiDaysE += 0.5;
+            // E. Học, Hội nghị (H, Hn, Hct)
+            if (['H', 'Hn', 'Hct'].includes(shift1Symbol)) {
+              hocHoiDaysE += 0.5;
+            }
+            if (['H', 'Hn', 'Hct'].includes(shift2Symbol)) {
+              hocHoiDaysE += 0.5;
+            }
 
-            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift1Symbol)) khacDaysF += 0.5;
-            if (['DL', 'NB', 'Co', 'Ts', 'Ds', 'KH', 'NT', 'N', 'No', 'K'].includes(shift2Symbol)) khacDaysF += 0.5;
+            // F. Khác (các loại còn lại: DL, NB, N, No, K)
+            if (['DL', 'NB', 'N', 'No', 'K'].includes(shift1Symbol)) {
+              khacDaysF += 0.5;
+            }
+            if (['DL', 'NB', 'N', 'No', 'K'].includes(shift2Symbol)) {
+              khacDaysF += 0.5;
+            }
           }
 
-          const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC;
-          const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF;
-          const tongCong = tongSoNgayLamAB;
+          // *** TÍNH TOÁN THEO CÙNG LOGIC VỚI calculateSummaryData ***
+          const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC; // A + B + C
+          const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // C + D + E + F
+          const tongCong = workDaysA + weekendDaysB + phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // A + B + C + D + E + F
 
           // Tạo ghi chú đơn giản
           const noteArray = [];
@@ -1776,7 +1952,7 @@ function QuanLyBangChamCong() {
           }
 
           if (bhxhDaysD > 0) {
-            noteArray.push(`- BHXH (bản thân ốm): ${bhxhDaysD.toFixed(1)}`);
+            noteArray.push(`- BHXH: ${bhxhDaysD.toFixed(1)}`);
           }
 
           if (hocHoiDaysE > 0) {
@@ -1805,9 +1981,9 @@ function QuanLyBangChamCong() {
           };
         });
 
-        // Tạo worksheet cho tháng
+        // Tạo worksheet cho tháng - PHẦN NÀY GIỮ NGUYÊN TỪ CODE CŨ
         const worksheet = workbook.addWorksheet(`T${month}`);
-        const totalCols = 5 + monthDaysInMonth + 10; // Thêm 1 cột cho Mã NV
+        const totalCols = 5 + monthDaysInMonth + 10;
 
         // 1. HEADER THÔNG TIN BỆNH VIỆN
         worksheet.mergeCells(1, 1, 1, Math.floor(totalCols / 2));
@@ -1872,7 +2048,7 @@ function QuanLyBangChamCong() {
           worksheet.getCell(headerRow, col).value = header;
         });
 
-        // 4. DỮ LIỆU NHÂN VIÊN
+        // 4. DỮ LIỆU NHÂN VIÊN - *** SỬ DỤNG DỮ LIỆU ĐÃ TÍNH TOÁN ***
         let currentRow = headerRow + 3;
 
         monthSummaryData.forEach((nv, index) => {
@@ -1893,12 +2069,18 @@ function QuanLyBangChamCong() {
           worksheet.mergeCells(currentRow, 5, currentRow + 1, 5); // Khoa phòng
           worksheet.getCell(currentRow, 5).value = nv.khoaPhong?.tenKhoaPhong || khoaPhongName;
 
+          // *** DỮ LIỆU CHẤM CÔNG ĐỒNG BỘ ***
           for (let day = 1; day <= monthDaysInMonth; day++) {
             const shift1Symbol = employeeData[1][day] || '-';
             const shift2Symbol = employeeData[2][day] || '-';
 
             worksheet.getCell(currentRow, 5 + day).value = shift1Symbol;
             worksheet.getCell(currentRow + 1, 5 + day).value = shift2Symbol;
+
+            // Debug log cho tháng hiện tại
+            if (month === selectedMonth && selectedYearForExport === selectedYear && day <= 3 && index === 0) {
+              console.log(`📅 Current Month ${month} - Employee ${nv.maNV} Day ${day}: CA1=${shift1Symbol}, CA2=${shift2Symbol}`);
+            }
           }
 
           const summaryValues = [
@@ -1916,6 +2098,7 @@ function QuanLyBangChamCong() {
           currentRow += 2;
         });
 
+        // [Các phần styling, column width, legend... giữ nguyên như code cũ]
         // 5. STYLING
         const hospitalTitleStyle = {
           font: { name: 'Times New Roman', size: 12, bold: true },
@@ -1985,11 +2168,11 @@ function QuanLyBangChamCong() {
         }
 
         // 6. THIẾT LẬP KÍCH THƯỚC CỘT VÀ DÒNG
-        worksheet.getColumn(1).width = 5;   // STT
-        worksheet.getColumn(2).width = 12;  // Mã NV
-        worksheet.getColumn(3).width = 25;  // Họ tên
-        worksheet.getColumn(4).width = 15;  // Ngày sinh
-        worksheet.getColumn(5).width = 15;  // Khoa phòng
+        worksheet.getColumn(1).width = 5;
+        worksheet.getColumn(2).width = 12;
+        worksheet.getColumn(3).width = 25;
+        worksheet.getColumn(4).width = 15;
+        worksheet.getColumn(5).width = 15;
 
         for (let i = 0; i < monthDaysInMonth; i++) {
           worksheet.getColumn(6 + i).width = 4;
@@ -2014,7 +2197,7 @@ function QuanLyBangChamCong() {
           const dayOfWeek = date.getDay();
 
           if (dayOfWeek === 0 || dayOfWeek === 6) {
-            const dayColumn = 5 + day; // Cập nhật vị trí cột ngày
+            const dayColumn = 5 + day;
 
             for (let row = headerRow; row <= headerRow + 2; row++) {
               const cell = worksheet.getCell(row, dayColumn);
@@ -2042,7 +2225,7 @@ function QuanLyBangChamCong() {
           }
         }
 
-        // 8. CHÚ THÍCH KÝ HIỆU (THÊM CHO TẤT CẢ CÁC THÁNG)
+        // 8. CHÚ THÍCH KÝ HIỆU
         let legendStartRow = dataEndRow + 3;
 
         worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
@@ -2122,9 +2305,12 @@ function QuanLyBangChamCong() {
         worksheet.getCell(specialRow, 2).value = 'Không có dữ liệu';
         worksheet.getCell(specialRow, 1).style = legendDataStyle;
         worksheet.getCell(specialRow, 2).style = legendDescStyle;
+
+        console.log(`✅ Completed month ${month} with ${monthSummaryData.length} employees`);
       }
 
       // 9. XUẤT FILE
+      console.log('📁 Creating Excel file...');
       const buffer = await workbook.xlsx.writeBuffer();
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       const fileName = `TongHop_ChamCong_Nam${selectedYearForExport}_${timestamp}.xlsx`;
@@ -2139,9 +2325,11 @@ function QuanLyBangChamCong() {
       link.click();
       window.URL.revokeObjectURL(url);
 
+      console.log('🎉 Successfully exported yearly Excel!');
       toast.success(`Xuất file Excel tổng hợp năm ${selectedYearForExport} thành công!`);
+
     } catch (error) {
-      console.error('Lỗi xuất Excel theo năm:', error);
+      console.error('❌ Error in yearly Excel export:', error);
       toast.error('Có lỗi xảy ra khi xuất file Excel theo năm!');
     }
   };
