@@ -15,7 +15,7 @@ function Navbar() {
   const [isLoading, setIsLoading] = useState(true);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
-  
+
   // Lấy từ localStorage làm fallback
   const fallbackRole = localStorage.getItem('role');
   const fallbackKhoaPhongId = localStorage.getItem('khoaPhongId');
@@ -31,28 +31,28 @@ function Navbar() {
       setIsLoading(true);
       const response = await axiosInstance.get('/user/current');
       const userData = response.data;
-      
+
       setUserInfo({
         tenDangNhap: userData.tenDangNhap,
         tenKhoaPhong: userData.tenKhoaPhong,
         role: userData.role
       });
-      
+
       // Cập nhật localStorage với thông tin mới nhất
       localStorage.setItem('tenDangNhap', userData.tenDangNhap);
       localStorage.setItem('tenKhoaPhong', userData.tenKhoaPhong);
       localStorage.setItem('role', userData.role);
-      
+
     } catch (error) {
       console.error('Error fetching user info:', error);
-      
+
       // Fallback sử dụng dữ liệu từ localStorage
       setUserInfo({
         tenDangNhap: fallbackTenDangNhap || '',
         tenKhoaPhong: localStorage.getItem('tenKhoaPhong') || '',
         role: fallbackRole || ''
       });
-      
+
       // Nếu có khoaPhongId thì fetch tên khoa phòng như cũ (fallback)
       if (fallbackRole !== 'ADMIN' && fallbackKhoaPhongId && !localStorage.getItem('tenKhoaPhong')) {
         fetchTenKhoaPhongFallback();
@@ -92,13 +92,15 @@ function Navbar() {
 
   const displayRole = () => {
     const currentRole = userInfo.role || fallbackRole;
-    switch(currentRole) {
+    switch (currentRole) {
       case 'ADMIN':
         return 'Quản trị viên';
       case 'NGUOICHAMCONG':
         return 'Người chấm công';
       case 'NGUOITONGHOP':
         return 'Người tổng hợp';
+      case 'NGUOITONGHOP_1KP':
+        return 'Người tổng hợp 1 khoa phòng';
       default:
         return 'Người dùng';
     }
@@ -129,13 +131,13 @@ function Navbar() {
               src={logoTanPhu}
               alt="Logo Bệnh viện Quận Tân Phú"
               className="me-3"
-              style={{ 
-                height: '50px', 
+              style={{
+                height: '50px',
                 width: 'auto',
                 objectFit: 'contain'
               }}
             />
-            
+
             {/* Hospital Name */}
             <div className="d-none d-md-block">
               <div className="hospital-name">
@@ -165,33 +167,33 @@ function Navbar() {
                 <div className="fw-medium text-dark" style={{ fontSize: '0.95rem' }}>
                   {getDisplayName()}
                 </div>
-                
+
                 {/* Hiển thị role */}
                 <small className="text-muted d-block" style={{ fontSize: '0.8rem' }}>
                   {displayRole()}
                 </small>
-                
-                {/* Chỉ hiển thị khoa phòng nếu không phải ADMIN */}
-                {getCurrentRole() !== 'ADMIN' && (
+
+                {/* *** LOGIC MỚI: Chỉ hiển thị khoa phòng cho NGUOICHAMCONG và NGUOITONGHOP_1KP *** */}
+                {(getCurrentRole() === 'NGUOICHAMCONG' || getCurrentRole() === 'NGUOITONGHOP_1KP') && (
                   <small className="text-muted" style={{ fontSize: '0.75rem' }}>
                     {getKhoaPhongName()}
                   </small>
                 )}
               </div>
-              
+
               {/* Avatar hoặc icon user */}
               <div className="d-flex align-items-center">
-                <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" 
-                     style={{ width: '32px', height: '32px', fontSize: '0.8rem' }}>
+                <div className="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2"
+                  style={{ width: '32px', height: '32px', fontSize: '0.8rem' }}>
                   {getDisplayName().charAt(0).toUpperCase()}
                 </div>
                 <i className="ri-arrow-down-s-line text-muted"></i>
               </div>
             </button>
-            
+
             <ul className="dropdown-menu dropdown-menu-end shadow">
               <li>
-                <button 
+                <button
                   className="dropdown-item d-flex align-items-center"
                   onClick={() => setShowUserProfileModal(true)}
                 >
@@ -200,7 +202,7 @@ function Navbar() {
                 </button>
               </li>
               <li>
-                <button 
+                <button
                   className="dropdown-item d-flex align-items-center"
                   onClick={() => setShowChangePasswordModal(true)}
                 >
@@ -224,11 +226,11 @@ function Navbar() {
       </div>
 
       {/* Modals */}
-      <ChangePasswordModal 
+      <ChangePasswordModal
         isOpen={showChangePasswordModal}
         onClose={() => setShowChangePasswordModal(false)}
       />
-      <UserProfileModal 
+      <UserProfileModal
         isOpen={showUserProfileModal}
         onClose={() => setShowUserProfileModal(false)}
       />

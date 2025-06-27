@@ -15,10 +15,10 @@ function QuanLyDanhSachNhanSu() {
   const [isEdit, setIsEdit] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // *** THÊM MỚI: State cho filter khoa phòng (chỉ ADMIN) ***
   const [selectedKhoaPhongFilter, setSelectedKhoaPhongFilter] = useState('');
-  
+
   const [currentNhanVien, setCurrentNhanVien] = useState({
     id: null,
     hoTen: '',
@@ -40,7 +40,7 @@ function QuanLyDanhSachNhanSu() {
     setIsLoading(true);
     try {
       const params = { page, size };
-      
+
       // *** LOGIC PHÂN QUYỀN FILTER KHOA PHÒNG ***
       if (role === 'ADMIN') {
         // ADMIN: Có thể chọn khoa phòng cụ thể hoặc xem tất cả
@@ -52,7 +52,7 @@ function QuanLyDanhSachNhanSu() {
         // Các role khác: Chỉ xem khoa phòng của mình
         params.khoaPhongId = khoaPhongId;
       }
-      
+
       // Thêm search term nếu có
       if (searchTerm) {
         params.search = searchTerm;
@@ -129,12 +129,12 @@ function QuanLyDanhSachNhanSu() {
       ? format(currentNhanVien.ngayThangNamSinh, 'dd/MM/yyyy')
       : null;
 
-    const processedMaNV = currentNhanVien.maNV && currentNhanVien.maNV.trim() 
-      ? currentNhanVien.maNV.trim() 
+    const processedMaNV = currentNhanVien.maNV && currentNhanVien.maNV.trim()
+      ? currentNhanVien.maNV.trim()
       : null;
 
-    const processedSDT = currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim() 
-      ? currentNhanVien.soDienThoai.trim() 
+    const processedSDT = currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim()
+      ? currentNhanVien.soDienThoai.trim()
       : null;
 
     return {
@@ -239,6 +239,8 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
+  // *** THAY THẾ ĐOẠN CODE TRONG openModal function (khoảng dòng 220-240) ***
+
   const openModal = (nhanVien = null) => {
     setIsEdit(!!nhanVien);
     if (nhanVien) {
@@ -254,13 +256,26 @@ function QuanLyDanhSachNhanSu() {
         soDienThoai: nhanVien.soDienThoai || '',
       });
     } else {
-      // *** SỬA: Khi thêm mới, set khoa phòng mặc định ***
+      // *** CẬP NHẬT: Khi thêm mới, set khoa phòng mặc định cho restricted roles ***
       let defaultKhoaPhongId = '';
-      if (role === 'NGUOICHAMCONG') {
+
+      if (role === 'NGUOICHAMCONG' || role === 'NGUOITONGHOP_1KP') {
+        // Các role này chỉ được thêm nhân viên vào khoa phòng của mình
         defaultKhoaPhongId = khoaPhongId;
-      } else if (role === 'ADMIN' && selectedKhoaPhongFilter) {
-        defaultKhoaPhongId = selectedKhoaPhongFilter;
+      } else if (role === 'ADMIN' || role === 'NGUOITONGHOP') {
+        // ADMIN và NGUOITONGHOP có thể chọn, nhưng ưu tiên filter hiện tại nếu có
+        if (selectedKhoaPhongFilter) {
+          defaultKhoaPhongId = selectedKhoaPhongFilter;
+        }
+        // Không set mặc định nếu không có filter (để user tự chọn)
       }
+
+      console.log('🏥 Default khoa phòng for new employee:', {
+        role,
+        userKhoaPhongId: khoaPhongId,
+        selectedFilter: selectedKhoaPhongFilter,
+        defaultSet: defaultKhoaPhongId
+      });
 
       setCurrentNhanVien({
         id: null,
@@ -320,9 +335,9 @@ function QuanLyDanhSachNhanSu() {
             )}
           </p>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={() => openModal()} 
+        <button
+          className="btn btn-primary"
+          onClick={() => openModal()}
           disabled={isLoading}
         >
           <i className="ri-user-add-line me-1"></i>
@@ -349,7 +364,7 @@ function QuanLyDanhSachNhanSu() {
                 }}
               />
             </div>
-            
+
             {/* *** CHỈ HIỂN THỊ FILTER KHOA PHÒNG CHO ADMIN *** */}
             {role === 'ADMIN' && (
               <div className="col-md-6">
@@ -372,7 +387,7 @@ function QuanLyDanhSachNhanSu() {
               </div>
             )}
           </div>
-          
+
           {/* *** THÊM THÔNG TIN HIỂN THỊ PHÂN QUYỀN *** */}
           <div className="mt-3">
             <div className="row">
@@ -481,8 +496,8 @@ function QuanLyDanhSachNhanSu() {
               <i className="ri-user-unfollow-line text-muted" style={{ fontSize: '64px' }}></i>
               <h5 className="text-muted mt-3">Không có nhân viên nào</h5>
               <p className="text-muted">
-                {searchTerm ? 
-                  `Không tìm thấy nhân viên với từ khóa "${searchTerm}"` : 
+                {searchTerm ?
+                  `Không tìm thấy nhân viên với từ khóa "${searchTerm}"` :
                   'Không có nhân viên nào trong khoa phòng này'
                 }
               </p>
@@ -498,7 +513,7 @@ function QuanLyDanhSachNhanSu() {
             <i className="ri-information-line me-1"></i>
             Hiển thị <strong>{nhanViens.length}</strong> nhân viên
             {searchTerm && ` - Kết quả tìm kiếm cho "${searchTerm}"`}
-            {role === 'ADMIN' && selectedKhoaPhongFilter && 
+            {role === 'ADMIN' && selectedKhoaPhongFilter &&
               ` - Khoa phòng: ${khoaPhongs.find(kp => kp.id.toString() === selectedKhoaPhongFilter)?.tenKhoaPhong}`
             }
           </small>
@@ -629,19 +644,36 @@ function QuanLyDanhSachNhanSu() {
                   />
                 </Form.Group>
               </div>
+{/* // *** THAY THẾ ĐOẠN CODE TRONG MODAL (khoảng dòng 400-420) */}
+
               <div className="col-md-6">
                 <Form.Group className="mb-3">
                   <Form.Label className="fw-semibold">
                     Khoa/Phòng <span className="text-danger">*</span>
                   </Form.Label>
-                  {role === 'NGUOICHAMCONG' ? (
+
+                  {/* *** LOGIC MỚI: Disable cho NGUOICHAMCONG và NGUOITONGHOP_1KP *** */}
+                  {(role === 'NGUOICHAMCONG' || role === 'NGUOITONGHOP_1KP') ? (
                     <Form.Control
                       type="text"
-                      value={khoaPhongs.find((kp) => kp.id === Number(khoaPhongId))?.tenKhoaPhong || 'N/A'}
+                      value={(() => {
+                        // Tìm tên khoa phòng để hiển thị
+                        if (isEdit && currentNhanVien.khoaPhong.id) {
+                          // Khi sửa: Hiển thị khoa phòng của nhân viên đó
+                          const selectedKhoaPhong = khoaPhongs.find((kp) => kp.id.toString() === currentNhanVien.khoaPhong.id.toString());
+                          return selectedKhoaPhong?.tenKhoaPhong || 'Khoa phòng không xác định';
+                        } else {
+                          // Khi thêm mới: Hiển thị khoa phòng của user hiện tại
+                          const userKhoaPhong = khoaPhongs.find((kp) => kp.id.toString() === khoaPhongId);
+                          return userKhoaPhong?.tenKhoaPhong || 'Khoa phòng không xác định';
+                        }
+                      })()}
                       disabled
                       className="bg-light"
+                      style={{ cursor: 'not-allowed', color: '#6c757d' }}
                     />
                   ) : (
+                    // *** CHỈ CHO PHÉP CHỌN KHI LÀ ADMIN HOẶC NGUOITONGHOP ***
                     <Form.Select
                       name="khoaPhongId"
                       value={currentNhanVien.khoaPhong.id}
@@ -657,6 +689,27 @@ function QuanLyDanhSachNhanSu() {
                       ))}
                     </Form.Select>
                   )}
+
+                  {/* *** THÊM GHI CHÚ GIẢI THÍCH *** */}
+                  <Form.Text className="text-muted">
+                    {(role === 'NGUOICHAMCONG' || role === 'NGUOITONGHOP_1KP') ? (
+                      <span>
+                        <i className="ri-lock-line me-1"></i>
+                        {isEdit ?
+                          'Không thể thay đổi khoa phòng của nhân viên' :
+                          'Chỉ có thể thêm nhân viên vào khoa phòng của bạn'
+                        }
+                      </span>
+                    ) : (
+                      <span>
+                        <i className="ri-building-line me-1"></i>
+                        {isEdit ?
+                          'Có thể thay đổi khoa phòng của nhân viên' :
+                          'Chọn khoa phòng cho nhân viên mới'
+                        }
+                      </span>
+                    )}
+                  </Form.Text>
                 </Form.Group>
               </div>
             </div>
