@@ -357,7 +357,7 @@ function ChamCong() {
       try {
         setLoading(true);
 
-        if (userRole === 'NGUOICHAMCONG') {
+        if (userRole === 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP_1KP') {
           setFilterKhoaPhongId(Number(userKhoaPhongId));
 
           // *** THÊM MỚI: Fetch thông tin khoa phòng cho NGUOICHAMCONG ***
@@ -375,6 +375,19 @@ function ChamCong() {
         if (userRole === 'ADMIN' || userRole === 'NGUOITONGHOP') {
           const khoaPhongResponse = await axiosInstance.get('/khoa-phong');
           setKhoaPhongs(khoaPhongResponse.data);
+        }
+
+        // THÊM ĐOẠN NÀY SAU ĐOẠN TRÊN
+        if (userRole === 'NGUOITONGHOP_1KP') {
+          try {
+            const khoaPhongResponse = await axiosInstance.get('/khoa-phong');
+            const userKhoaPhong = khoaPhongResponse.data.find(kp => kp.id === Number(userKhoaPhongId));
+            if (userKhoaPhong) {
+              setKhoaPhongs([userKhoaPhong]); // Chỉ set khoa phòng của user này
+            }
+          } catch (error) {
+            console.error('Lỗi khi tải thông tin khoa phòng:', error);
+          }
         }
 
         const kyHieuResponse = await axiosInstance.get('/ky-hieu-cham-cong');
@@ -456,7 +469,7 @@ function ChamCong() {
     // Kiểm tra quyền và khoa phòng
     let targetKhoaPhongId = filterKhoaPhongId;
 
-    if (userRole === 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP') {
+    if (userRole === 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP') {
       targetKhoaPhongId = Number(userKhoaPhongId);
     }
 
@@ -762,6 +775,9 @@ function ChamCong() {
     const key = `${nv.id}_${shift}`;
     const currentStatus = checkInStatus[key];
 
+    // *** THÊM LOGIC DISABLE CHO NGUOITONGHOP VÀ NGUOITONGHOP_1KP ***
+    const isDisabledForRole = userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP';
+
     const lamButtonClass = currentStatus === 'LÀM' ?
       'btn btn-sm btn-success' :
       'btn btn-sm btn-outline-success';
@@ -775,16 +791,24 @@ function ChamCong() {
         <button
           className={lamButtonClass}
           onClick={() => handleChamCong(nv.id, 'LÀM', shift)}
-          disabled={!!currentStatus}
-          title={currentStatus === 'LÀM' ? 'Đã chấm công làm' : 'Chấm công làm'}
+          disabled={!!currentStatus || isDisabledForRole} // *** THÊM isDisabledForRole ***
+          title={
+            isDisabledForRole
+              ? 'Không có quyền chấm công'
+              : (currentStatus === 'LÀM' ? 'Đã chấm công làm' : 'Chấm công làm')
+          }
         >
           {currentStatus === 'LÀM' ? '✓ Làm' : 'Làm'}
         </button>
         <button
           className={nghiButtonClass}
           onClick={() => handleChamCong(nv.id, 'NGHỈ', shift)}
-          disabled={kyHieuChamCongs.length === 0 || !!currentStatus}
-          title={currentStatus === 'NGHỈ' ? 'Đã chấm công nghỉ' : 'Chấm công nghỉ'}
+          disabled={kyHieuChamCongs.length === 0 || !!currentStatus || isDisabledForRole} // *** THÊM isDisabledForRole ***
+          title={
+            isDisabledForRole
+              ? 'Không có quyền chấm công'
+              : (currentStatus === 'NGHỈ' ? 'Đã chấm công nghỉ' : 'Chấm công nghỉ')
+          }
         >
           {currentStatus === 'NGHỈ' ? '✓ Nghỉ' : 'Nghỉ'}
         </button>
@@ -977,7 +1001,7 @@ function ChamCong() {
                     <button
                       className="btn btn-success"
                       onClick={() => handleBulkChamCong('LÀM', 1)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP'}
+                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
                     >
                       <i className="ri-check-line me-1"></i>
                       Tất cả LÀM - Ca Sáng
@@ -985,7 +1009,7 @@ function ChamCong() {
                     <button
                       className="btn btn-danger"
                       onClick={() => handleBulkChamCong('NGHỈ', 1)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP'}
+                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
                     >
                       <i className="ri-close-line me-1"></i>
                       Tất cả NGHỈ - Ca Sáng
@@ -998,7 +1022,7 @@ function ChamCong() {
                     <button
                       className="btn btn-success"
                       onClick={() => handleBulkChamCong('LÀM', 2)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP'}
+                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
                     >
                       <i className="ri-check-line me-1"></i>
                       Tất cả LÀM - Ca Chiều
@@ -1006,7 +1030,7 @@ function ChamCong() {
                     <button
                       className="btn btn-danger"
                       onClick={() => handleBulkChamCong('NGHỈ', 2)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP'}
+                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
                     >
                       <i className="ri-close-line me-1"></i>
                       Tất cả NGHỈ - Ca Chiều
@@ -1014,7 +1038,7 @@ function ChamCong() {
                   </div>
                 </div>
               </div>
-              {(!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP') && (
+              {(!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP') && (
                 <div className="alert alert-warning mb-0 mt-2">
                   <i className="ri-alert-line me-2"></i>
                   Vui lòng chọn khoa phòng để sử dụng tính năng chấm công hàng loạt
@@ -1265,7 +1289,7 @@ function ChamCong() {
                         value={bulkData.khoaPhongId}
                         onChange={(e) => setBulkData(prev => ({ ...prev, khoaPhongId: e.target.value }))}
                         required
-                        disabled={userRole === 'NGUOITONGHOP'} // Chỉ disable cho NGUOITONGHOP, NGUOICHAMCONG vẫn có thể chọn
+                        disabled={userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP'} // Disable cho NGUOITONGHOP và NGUOITONGHOP_1KP
                       >
                         <option value="">-- Chọn khoa phòng --</option>
                         {khoaPhongs.map((khoaPhong) => (

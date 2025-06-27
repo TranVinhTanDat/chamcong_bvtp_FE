@@ -16,9 +16,14 @@ function QuanLyBangChamCong() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statistics, setStatistics] = useState({});
   const [khoaPhongs, setKhoaPhongs] = useState([]);
-  const [selectedKhoaPhongId, setSelectedKhoaPhongId] = useState(
-    userRole === 'ADMIN' ? Number(userKhoaPhongId) : null
-  );
+  const [selectedKhoaPhongId, setSelectedKhoaPhongId] = useState(() => {
+    if (userRole === 'NGUOITONGHOP_1KP') {
+      return Number(userKhoaPhongId); // Khóa cứng cho NGUOITONGHOP_1KP
+    } else if (userRole === 'NGUOITONGHOP' || userRole === 'ADMIN') {
+      return null; // Cho phép chọn tất cả hoặc chọn cụ thể
+    }
+    return Number(userKhoaPhongId); // Default cho các role khác
+  });
   const [isInitialized, setIsInitialized] = useState(false);
 
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
@@ -406,15 +411,56 @@ function QuanLyBangChamCong() {
         toast.error(`Lỗi khi tải danh sách khoa phòng: ${error.response?.data?.error || error.message}`);
       }
     }
-  }, [userRole]);
+    // THÊM ĐOẠN NÀY CHO NGUOITONGHOP_1KP
+    else if (userRole === 'NGUOITONGHOP_1KP') {
+      try {
+        const khoaPhongResponse = await axiosInstance.get('/khoa-phong');
+        const userKhoaPhong = khoaPhongResponse.data.find(kp => kp.id === Number(userKhoaPhongId));
+        if (userKhoaPhong) {
+          setKhoaPhongs([userKhoaPhong]); // Chỉ set khoa phòng của user này
+        }
+      } catch (error) {
+        toast.error(`Lỗi khi tải thông tin khoa phòng: ${error.response?.data?.error || error.message}`);
+      }
+    }
+  }, [userRole, userKhoaPhongId]);
 
   // Lấy danh sách nhân viên, dữ liệu chấm công và ký hiệu chấm công
   // *** THAY THẾ HÀM fetchData TRONG QuanLyBangChamCong.js ***
 
   const fetchData = useCallback(async (showNoDataToast = true) => {
-    const khoaPhongIdToUse = selectedKhoaPhongId || userKhoaPhongId;
+    // FIXED: Logic xác định khoaPhongId để sử dụng
+    let khoaPhongIdToUse = null;
 
-    if (!khoaPhongIdToUse && userRole !== 'ADMIN') {
+    if (userRole === 'NGUOITONGHOP_1KP') {
+      // NGUOITONGHOP_1KP: Luôn dùng khoa phòng của mình, không cho chọn khác
+      khoaPhongIdToUse = Number(userKhoaPhongId);
+    } else if (userRole === 'NGUOITONGHOP' || userRole === 'ADMIN') {
+      // NGUOITONGHOP và ADMIN: Có thể chọn khoa phòng cụ thể hoặc "Tất cả"
+      if (selectedKhoaPhongId) {
+        khoaPhongIdToUse = selectedKhoaPhongId; // Đã chọn khoa phòng cụ thể
+      } else {
+        khoaPhongIdToUse = null; // Chọn "Tất cả khoa phòng"
+      }
+    } else {
+      // Các role khác (NGUOICHAMCONG): Dùng khoa phòng của mình
+      khoaPhongIdToUse = Number(userKhoaPhongId);
+    }
+
+    console.log('🔍 fetchData Logic:', {
+      userRole,
+      userKhoaPhongId,
+      selectedKhoaPhongId,
+      khoaPhongIdToUse,
+      explanation: userRole === 'NGUOITONGHOP_1KP'
+        ? 'NGUOITONGHOP_1KP - Khóa cứng khoa phòng'
+        : userRole === 'NGUOITONGHOP' || userRole === 'ADMIN'
+          ? selectedKhoaPhongId ? 'ADMIN/NGUOITONGHOP - Chọn khoa phòng cụ thể' : 'ADMIN/NGUOITONGHOP - Tất cả khoa phòng'
+          : 'Role khác - Dùng khoa phòng của user'
+    });
+
+    // Kiểm tra điều kiện dừng
+    if (!khoaPhongIdToUse && userRole !== 'ADMIN' && userRole !== 'NGUOITONGHOP') {
       toast.error('Không tìm thấy khoa phòng, vui lòng đăng nhập lại!');
       setLoading(false);
       return;
@@ -424,12 +470,33 @@ function QuanLyBangChamCong() {
       setLoading(true);
 
       // Load nhân viên
+      const nhanVienParams = {
+        page: 0,
+        size: 100
+      };
+      if (khoaPhongIdToUse) {
+        nhanVienParams.khoaPhongId = khoaPhongIdToUse;
+      }
+      // Nếu khoaPhongIdToUse là null (ADMIN/NGUOITONGHOP chọn "Tất cả"), không truyền khoaPhongId
+
       const nhanVienResponse = await axiosInstance.get('/nhanvien', {
-        params: { khoaPhongId: khoaPhongIdToUse, page: 0, size: 100 },
+        params: nhanVienParams,
       });
+
       const nhanVienData = nhanVienResponse.data.content || [];
       setNhanViens(nhanVienData);
       setFilteredEmployees(nhanVienData);
+
+      console.log('👥 Loaded employees:', {
+        total: nhanVienData.length,
+        khoaPhongIdFilter: khoaPhongIdToUse,
+        sampleEmployees: nhanVienData.slice(0, 3).map(nv => ({
+          id: nv.id,
+          maNV: nv.maNV,
+          hoTen: nv.hoTen,
+          khoaPhong: nv.khoaPhong?.tenKhoaPhong
+        }))
+      });
 
       if (nhanVienData.length === 0 && showNoDataToast) {
         toast.warn('Không có nhân viên nào trong khoa phòng này.');
@@ -445,14 +512,21 @@ function QuanLyBangChamCong() {
       });
 
       // STEP 1: Load page đầu tiên để biết tổng số records
+      const chamCongParams = {
+        year: selectedYear,
+        month: selectedMonth,
+        page: 0,
+        size: 100, // Tăng size để giảm số page cần load
+      };
+
+      if (khoaPhongIdToUse) {
+        chamCongParams.khoaPhongId = khoaPhongIdToUse;
+      }
+
+      console.log('📊 Chamcong API params:', chamCongParams);
+
       const firstPageResponse = await axiosInstance.get('/chamcong/lichsu', {
-        params: {
-          year: selectedYear,
-          month: selectedMonth,
-          khoaPhongId: khoaPhongIdToUse,
-          page: 0,
-          size: 100, // Tăng size để giảm số page cần load
-        },
+        params: chamCongParams,
       });
 
       console.log('📊 First Page Response:', {
@@ -474,15 +548,10 @@ function QuanLyBangChamCong() {
         const pageLoadPromises = [];
 
         for (let page = 1; page < totalPages; page++) {
+          const pageParams = { ...chamCongParams, page: page };
           pageLoadPromises.push(
             axiosInstance.get('/chamcong/lichsu', {
-              params: {
-                year: selectedYear,
-                month: selectedMonth,
-                khoaPhongId: khoaPhongIdToUse,
-                page: page,
-                size: 100,
-              },
+              params: pageParams,
             })
           );
         }
@@ -2153,7 +2222,7 @@ function QuanLyBangChamCong() {
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body">
           <div className="row align-items-end">
-            {(userRole === 'ADMIN' || userRole === 'NGUOITONGHOP') && (
+            {(userRole === 'ADMIN' || userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP') && (
               <div className="col-md-3">
                 <label className="form-label fw-semibold text-dark">
                   <i className="ri-building-line me-1"></i>Khoa phòng
@@ -2162,6 +2231,7 @@ function QuanLyBangChamCong() {
                   className="form-select border-2"
                   value={selectedKhoaPhongId || ''}
                   onChange={(e) => setSelectedKhoaPhongId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={userRole === 'NGUOITONGHOP_1KP'} // Disable cho NGUOITONGHOP_1KP như NGUOICHAMCONG
                 >
                   {userRole === 'NGUOITONGHOP' && <option value="">Tất cả khoa phòng</option>}
                   {khoaPhongs.map(khoaPhong => (
