@@ -15,6 +15,10 @@ function QuanLyDanhSachNhanSu() {
   const [isEdit, setIsEdit] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // *** THÊM MỚI: State cho filter khoa phòng (chỉ ADMIN) ***
+  const [selectedKhoaPhongFilter, setSelectedKhoaPhongFilter] = useState('');
+  
   const [currentNhanVien, setCurrentNhanVien] = useState({
     id: null,
     hoTen: '',
@@ -31,17 +35,36 @@ function QuanLyDanhSachNhanSu() {
   const role = localStorage.getItem('role');
   const khoaPhongId = localStorage.getItem('khoaPhongId');
 
-  // Fetch danh sách nhân viên với search
+  // *** SỬA LẠI: Fetch danh sách nhân viên với logic phân quyền rõ ràng ***
   const fetchNhanViens = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = { page, size };
-      if (role === 'NGUOICHAMCONG') {
+      
+      // *** LOGIC PHÂN QUYỀN FILTER KHOA PHÒNG ***
+      if (role === 'ADMIN') {
+        // ADMIN: Có thể chọn khoa phòng cụ thể hoặc xem tất cả
+        if (selectedKhoaPhongFilter) {
+          params.khoaPhongId = selectedKhoaPhongFilter;
+        }
+        // Nếu không chọn khoa phòng nào thì xem tất cả (không truyền khoaPhongId)
+      } else {
+        // Các role khác: Chỉ xem khoa phòng của mình
         params.khoaPhongId = khoaPhongId;
       }
+      
+      // Thêm search term nếu có
       if (searchTerm) {
         params.search = searchTerm;
       }
+
+      console.log('🔍 Fetch params:', {
+        role,
+        userKhoaPhongId: khoaPhongId,
+        selectedFilter: selectedKhoaPhongFilter,
+        finalParams: params
+      });
+
       const response = await axiosInstance.get('/nhanvien', { params });
       setNhanViens(response.data.content || []);
       setTotalPages(response.data.totalPages || 0);
@@ -51,7 +74,7 @@ function QuanLyDanhSachNhanSu() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, size, role, khoaPhongId, searchTerm]);
+  }, [page, size, role, khoaPhongId, searchTerm, selectedKhoaPhongFilter]);
 
   // Fetch danh sách khoa/phòng và chức vụ
   const fetchKhoaPhongsAndChucVus = async () => {
@@ -79,6 +102,27 @@ function QuanLyDanhSachNhanSu() {
   useEffect(() => {
     fetchKhoaPhongsAndChucVus();
   }, []);
+
+  // *** THÊM HÀM XỬ LÝ THAY ĐỔI FILTER KHOA PHÒNG ***
+  const handleKhoaPhongFilterChange = (e) => {
+    setSelectedKhoaPhongFilter(e.target.value);
+    setPage(0); // Reset về trang đầu tiên khi thay đổi filter
+  };
+
+  // *** HÀM LẤY TÊN KHOA PHÒNG HIỆN TẠI CHO HIỂN THỊ ***
+  const getCurrentKhoaPhongName = () => {
+    if (role === 'ADMIN') {
+      if (selectedKhoaPhongFilter) {
+        const selectedKP = khoaPhongs.find(kp => kp.id.toString() === selectedKhoaPhongFilter);
+        return selectedKP?.tenKhoaPhong || 'Khoa phòng không xác định';
+      } else {
+        return 'Tất cả khoa phòng';
+      }
+    } else {
+      const userKP = khoaPhongs.find(kp => kp.id.toString() === khoaPhongId);
+      return userKP?.tenKhoaPhong || 'Khoa phòng không xác định';
+    }
+  };
 
   const preparePayload = () => {
     const formattedNgaySinh = currentNhanVien.ngayThangNamSinh
@@ -210,6 +254,14 @@ function QuanLyDanhSachNhanSu() {
         soDienThoai: nhanVien.soDienThoai || '',
       });
     } else {
+      // *** SỬA: Khi thêm mới, set khoa phòng mặc định ***
+      let defaultKhoaPhongId = '';
+      if (role === 'NGUOICHAMCONG') {
+        defaultKhoaPhongId = khoaPhongId;
+      } else if (role === 'ADMIN' && selectedKhoaPhongFilter) {
+        defaultKhoaPhongId = selectedKhoaPhongFilter;
+      }
+
       setCurrentNhanVien({
         id: null,
         hoTen: '',
@@ -217,7 +269,7 @@ function QuanLyDanhSachNhanSu() {
         maNV: '',
         ngayThangNamSinh: null,
         soDienThoai: '',
-        khoaPhong: { id: role === 'NGUOICHAMCONG' ? khoaPhongId : '' },
+        khoaPhong: { id: defaultKhoaPhongId },
         chucVu: { id: '' },
       });
     }
@@ -261,22 +313,31 @@ function QuanLyDanhSachNhanSu() {
           <h1 className="h3 mb-1 text-primary fw-bold">
             <i className="ri-team-line me-2"></i>Quản Lý Nhân Sự
           </h1>
-          <p className="text-muted mb-0">Quản lý danh sách nhân viên</p>
+          <p className="text-muted mb-0">
+            Quản lý danh sách nhân viên - {getCurrentKhoaPhongName()}
+            {role === 'ADMIN' && (
+              <span className="badge bg-success ms-2">ADMIN</span>
+            )}
+          </p>
         </div>
         <button 
           className="btn btn-primary" 
           onClick={() => openModal()} 
           disabled={isLoading}
         >
+          <i className="ri-user-add-line me-1"></i>
           Thêm Nhân Viên
         </button>
       </div>
 
-      {/* Tìm kiếm */}
+      {/* *** SỬA LẠI: Tìm kiếm và filter (chỉ ADMIN có filter khoa phòng) *** */}
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body">
           <div className="row align-items-end">
-            <div className="col-md-4">
+            <div className={role === 'ADMIN' ? 'col-md-6' : 'col-md-12'}>
+              <label className="form-label fw-semibold">
+                <i className="ri-search-line me-1"></i>Tìm kiếm nhân viên
+              </label>
               <input
                 type="text"
                 className="form-control"
@@ -287,6 +348,49 @@ function QuanLyDanhSachNhanSu() {
                   setPage(0);
                 }}
               />
+            </div>
+            
+            {/* *** CHỈ HIỂN THỊ FILTER KHOA PHÒNG CHO ADMIN *** */}
+            {role === 'ADMIN' && (
+              <div className="col-md-6">
+                <label className="form-label fw-semibold">
+                  <i className="ri-building-line me-1"></i>Lọc theo khoa phòng
+                </label>
+                <select
+                  className="form-select"
+                  value={selectedKhoaPhongFilter}
+                  onChange={handleKhoaPhongFilterChange}
+                  disabled={isLoading}
+                >
+                  <option value="">🌐 Tất cả khoa phòng</option>
+                  {khoaPhongs.map((kp) => (
+                    <option key={kp.id} value={kp.id}>
+                      {kp.tenKhoaPhong}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          
+          {/* *** THÊM THÔNG TIN HIỂN THỊ PHÂN QUYỀN *** */}
+          <div className="mt-3">
+            <div className="row">
+              <div className="col-12">
+                <small className="text-muted">
+                  {role === 'ADMIN' ? (
+                    <span>
+                      <i className="ri-shield-check-line me-1 text-success"></i>
+                      <strong>Quyền ADMIN:</strong> Có thể xem và quản lý nhân viên từ tất cả khoa phòng
+                    </span>
+                  ) : (
+                    <span>
+                      <i className="ri-building-2-line me-1 text-info"></i>
+                      <strong>Phạm vi:</strong> Chỉ được xem và quản lý nhân viên trong khoa phòng của bạn
+                    </span>
+                  )}
+                </small>
+              </div>
             </div>
           </div>
         </div>
@@ -300,6 +404,7 @@ function QuanLyDanhSachNhanSu() {
               <div className="spinner-border text-primary" role="status">
                 <span className="visually-hidden">Đang tải...</span>
               </div>
+              <p className="text-muted mt-2">Đang tải danh sách nhân viên...</p>
             </div>
           ) : nhanViens.length > 0 ? (
             <div className="table-responsive">
@@ -353,15 +458,17 @@ function QuanLyDanhSachNhanSu() {
                           className="btn btn-warning btn-sm me-2"
                           onClick={() => openModal(nv)}
                           disabled={isLoading}
+                          title="Sửa thông tin nhân viên"
                         >
-                          Sửa
+                          <i className="ri-edit-line"></i>
                         </button>
                         <button
                           className="btn btn-danger btn-sm"
                           onClick={() => handleDeleteNhanVien(nv.id)}
                           disabled={isLoading}
+                          title="Xóa nhân viên"
                         >
-                          Xóa
+                          <i className="ri-delete-bin-line"></i>
                         </button>
                       </td>
                     </tr>
@@ -371,13 +478,32 @@ function QuanLyDanhSachNhanSu() {
             </div>
           ) : (
             <div className="text-center py-5">
+              <i className="ri-user-unfollow-line text-muted" style={{ fontSize: '64px' }}></i>
+              <h5 className="text-muted mt-3">Không có nhân viên nào</h5>
               <p className="text-muted">
-                {searchTerm ? `Không tìm thấy nhân viên với từ khóa "${searchTerm}"` : 'Không có nhân viên nào'}
+                {searchTerm ? 
+                  `Không tìm thấy nhân viên với từ khóa "${searchTerm}"` : 
+                  'Không có nhân viên nào trong khoa phòng này'
+                }
               </p>
             </div>
           )}
         </div>
       </div>
+
+      {/* *** THÊM THÔNG TIN THỐNG KÊ *** */}
+      {nhanViens.length > 0 && (
+        <div className="mt-3">
+          <small className="text-muted">
+            <i className="ri-information-line me-1"></i>
+            Hiển thị <strong>{nhanViens.length}</strong> nhân viên
+            {searchTerm && ` - Kết quả tìm kiếm cho "${searchTerm}"`}
+            {role === 'ADMIN' && selectedKhoaPhongFilter && 
+              ` - Khoa phòng: ${khoaPhongs.find(kp => kp.id.toString() === selectedKhoaPhongFilter)?.tenKhoaPhong}`
+            }
+          </small>
+        </div>
+      )}
 
       {/* Phân trang */}
       {totalPages > 1 && (
@@ -385,7 +511,9 @@ function QuanLyDanhSachNhanSu() {
           <nav aria-label="Page navigation">
             <ul className="pagination justify-content-center">
               <li className={`page-item ${page === 0 ? 'disabled' : ''}`}>
-                <button className="page-link" onClick={() => handlePageChange(page - 1)}>Trước</button>
+                <button className="page-link" onClick={() => handlePageChange(page - 1)}>
+                  <i className="ri-arrow-left-line"></i> Trước
+                </button>
               </li>
               {Array.from({ length: totalPages }, (_, i) => (
                 <li key={i} className={`page-item ${page === i ? 'active' : ''}`}>
@@ -393,7 +521,9 @@ function QuanLyDanhSachNhanSu() {
                 </li>
               ))}
               <li className={`page-item ${page === totalPages - 1 ? 'disabled' : ''}`}>
-                <button className="page-link" onClick={() => handlePageChange(page + 1)}>Sau</button>
+                <button className="page-link" onClick={() => handlePageChange(page + 1)}>
+                  Sau <i className="ri-arrow-right-line"></i>
+                </button>
               </li>
             </ul>
           </nav>
@@ -404,6 +534,7 @@ function QuanLyDanhSachNhanSu() {
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title className="text-primary fw-semibold">
+            <i className={`ri-${isEdit ? 'edit' : 'user-add'}-line me-2`}></i>
             {isEdit ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên'}
           </Modal.Title>
         </Modal.Header>
@@ -556,10 +687,23 @@ function QuanLyDanhSachNhanSu() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)} disabled={isLoading}>
+            <i className="ri-close-line me-1"></i>
             Hủy
           </Button>
           <Button variant="primary" onClick={handleSaveNhanVien} disabled={isLoading}>
-            {isLoading ? 'Đang lưu...' : (isEdit ? 'Cập nhật' : 'Lưu')}
+            {isLoading ? (
+              <>
+                <div className="spinner-border spinner-border-sm me-2" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                Đang lưu...
+              </>
+            ) : (
+              <>
+                <i className={`ri-${isEdit ? 'save' : 'add'}-line me-1`}></i>
+                {isEdit ? 'Cập nhật' : 'Lưu'}
+              </>
+            )}
           </Button>
         </Modal.Footer>
       </Modal>

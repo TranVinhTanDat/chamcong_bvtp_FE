@@ -35,20 +35,65 @@ function QuanLyBangChamCong() {
   // *** THÊM STATE CHO CHỈNH SỬA KÝ HIỆU ***
   const [editingCell, setEditingCell] = useState(null); // { employeeId, day, shift }
   const [editSymbol, setEditSymbol] = useState('');
+  const [editStatus, setEditStatus] = useState('LÀM'); // THÊM MỚI
+  const [editCaLamViec, setEditCaLamViec] = useState(''); // THÊM MỚI
+  const [editGhiChu, setEditGhiChu] = useState(''); // THÊM MỚI
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editShift, setEditShift] = useState(1);
+
+
+  const [hasShownCompletionToast, setHasShownCompletionToast] = useState(false);
+
+  // Thêm state cho ca làm việc
+  const [caLamViecs, setCaLamViecs] = useState([]);
+
 
 
   // *** HÀM XỬ LÝ CHỈNH SỬA KÝ HIỆU ***
-  const handleCellClick = (employeeId, day, shift, currentSymbol) => {
+  const handleCellClick = async (employeeId, day, shift, currentSymbol) => {
     // Chỉ ADMIN mới được sửa
     if (userRole !== 'ADMIN') {
       return;
     }
 
-    setEditingCell({ employeeId, day, shift });
-    setEditSymbol(currentSymbol);
-    setShowEditModal(true);
+    try {
+      // Tìm bản ghi chấm công hiện tại để lấy thông tin đầy đủ
+      const attendanceRecord = await findAttendanceRecord(employeeId, day, shift);
+
+      // Xác định thông tin hiện tại
+      let currentStatus = 'LÀM';
+      let currentCaLamViec = '';
+      let currentGhiChu = '';
+
+      if (attendanceRecord) {
+        currentStatus = attendanceRecord.trangThaiChamCong?.tenTrangThai || 'LÀM';
+        currentCaLamViec = attendanceRecord.caLamViec?.id?.toString() || '';
+        currentGhiChu = attendanceRecord.ghiChu || '';
+      }
+
+      // Nếu không có bản ghi, set ca mặc định
+      if (!currentCaLamViec) {
+        const caSang = caLamViecs.find(ca => ca.id === 11);
+        const caChieu = caLamViecs.find(ca => ca.id === 12);
+        currentCaLamViec = shift === 1 ?
+          (caSang ? caSang.id.toString() : caLamViecs[0]?.id?.toString()) :
+          (caChieu ? caChieu.id.toString() : caLamViecs[0]?.id?.toString());
+      }
+
+      setEditingCell({ employeeId, day, shift });
+      setEditSymbol(currentSymbol);
+      setEditStatus(currentStatus);
+      setEditCaLamViec(currentCaLamViec || '');
+      setEditGhiChu(currentGhiChu);
+      setEditShift(shift); // *** THÊM MỚI: Set shift hiện tại ***
+      setShowEditModal(true);
+
+    } catch (error) {
+      console.error('Lỗi khi load thông tin chấm công:', error);
+      toast.error('Không thể load thông tin chấm công hiện tại');
+    }
   };
+
 
 
   // *** COMPONENT MODAL CHỈNH SỬA ***
@@ -56,16 +101,21 @@ function QuanLyBangChamCong() {
     if (!showEditModal || !editingCell) return null;
 
     const employee = filteredEmployees.find(nv => nv.id === editingCell.employeeId);
-    const shiftName = editingCell.shift === 1 ? 'sáng' : 'chiều';
+    const shiftName = editShift === 1 ? 'sáng' : 'chiều';
+
+    // *** FIXED: Lọc ký hiệu chấm công chỉ cho trạng thái NGHỈ ***
+    const availableLeaveSymbols = kyHieuChamCongs
+      .filter(kh => !caLamViecs.some(ca => ca.kyHieuChamCong?.maKyHieu === kh.maKyHieu))
+      .map(kh => kh.maKyHieu);
 
     return (
       <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-dialog modal-dialog-centered modal-lg">
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title">
                 <i className="ri-edit-line me-2"></i>
-                Chỉnh sửa ký hiệu chấm công
+                Chỉnh sửa chấm công
               </h5>
               <button
                 type="button"
@@ -74,32 +124,197 @@ function QuanLyBangChamCong() {
               ></button>
             </div>
             <div className="modal-body">
-              <div className="mb-3">
-                <strong>Nhân viên:</strong> {employee?.hoTen} ({employee?.maNV})
+              <div className="row mb-3">
+                <div className="col-md-6">
+                  <strong>Nhân viên:</strong> {employee?.hoTen}
+                </div>
+                <div className="col-md-6">
+                  <strong>Mã NV:</strong> {employee?.maNV}
+                </div>
               </div>
-              <div className="mb-3">
-                <strong>Ngày:</strong> {editingCell.day}/{selectedMonth}/{selectedYear} - Ca {shiftName}
+
+              <div className="row mb-3">
+                <div className="col-md-6">
+                  <strong>Ngày:</strong> {editingCell.day}/{selectedMonth}/{selectedYear}
+                </div>
+                <div className="col-md-6">
+                  <strong>Ca hiện tại:</strong>
+                  <span className={`badge ms-2 ${editShift === 1 ? 'bg-success' : 'bg-info'}`}>
+                    Ca {editShift === 1 ? 'Sáng' : 'Chiều'}
+                  </span>
+                </div>
               </div>
+
+              {/* *** THÊM MỚI: Lựa chọn shift *** */}
               <div className="mb-3">
-                <label className="form-label fw-semibold">Ký hiệu chấm công:</label>
+                <label className="form-label fw-semibold">Chọn ca để cập nhật:</label>
+                <div className="btn-group w-100" role="group">
+                  <input
+                    type="radio"
+                    className="btn-check"
+                    name="shiftOptions"
+                    id="shift1"
+                    value={1}
+                    checked={editShift === 1}
+                    onChange={(e) => {
+                      setEditShift(1);
+                      // Tự động cập nhật ca làm việc mặc định
+                      const caSang = caLamViecs.find(ca => ca.id === 11);
+                      if (caSang) {
+                        setEditCaLamViec(caSang.id.toString());
+                      }
+                    }}
+                  />
+                  <label className="btn btn-outline-success" htmlFor="shift1">
+                    <i className="ri-sun-line me-1"></i>
+                    Ca Sáng (Shift 1)
+                  </label>
+
+                  <input
+                    type="radio"
+                    className="btn-check"
+                    name="shiftOptions"
+                    id="shift2"
+                    value={2}
+                    checked={editShift === 2}
+                    onChange={(e) => {
+                      setEditShift(2);
+                      // Tự động cập nhật ca làm việc mặc định
+                      const caChieu = caLamViecs.find(ca => ca.id === 12);
+                      if (caChieu) {
+                        setEditCaLamViec(caChieu.id.toString());
+                      }
+                    }}
+                  />
+                  <label className="btn btn-outline-info" htmlFor="shift2">
+                    <i className="ri-moon-line me-1"></i>
+                    Ca Chiều (Shift 2)
+                  </label>
+                </div>
+                <small className="text-muted">
+                  Bạn có thể thay đổi ca cần cập nhật. Hiện tại đang chỉnh sửa ca {shiftName}.
+                </small>
+              </div>
+
+              {/* Trạng thái */}
+              <div className="mb-3">
+                <label className="form-label fw-semibold">Trạng thái:</label>
                 <select
                   className="form-select"
-                  value={editSymbol}
-                  onChange={(e) => setEditSymbol(e.target.value)}
+                  value={editStatus}
+                  onChange={(e) => {
+                    setEditStatus(e.target.value);
+                    // *** FIXED: Auto-adjust logic khi thay đổi trạng thái ***
+                    if (e.target.value === 'LÀM') {
+                      // Trạng thái LÀM: Xóa ký hiệu và ghi chú
+                      setEditSymbol(''); // *** KHÔNG CẦN KÝ HIỆU CHO LÀM ***
+                      setEditGhiChu(''); // Xóa ghi chú
+                    } else {
+                      // Trạng thái NGHỈ: Tự động chọn N1 và giữ nguyên ghi chú
+                      const defaultN1 = kyHieuChamCongs.find(kh => kh.maKyHieu === 'N1');
+                      setEditSymbol(defaultN1?.maKyHieu || (availableLeaveSymbols[0] || ''));
+                    }
+                  }}
                 >
-                  <option value="-">- (Không có dữ liệu)</option>
-                  {kyHieuChamCongs.map(kyHieu => (
-                    <option key={kyHieu.id} value={kyHieu.maKyHieu}>
-                      {kyHieu.maKyHieu} - {kyHieu.tenKyHieu}
+                  <option value="LÀM">Làm</option>
+                  <option value="NGHỈ">Nghỉ</option>
+                </select>
+              </div>
+
+              {/* Ca làm việc */}
+              <div className="mb-3">
+                <label className="form-label fw-semibold">Ca làm việc:</label>
+                <select
+                  className="form-select"
+                  value={editCaLamViec}
+                  onChange={(e) => setEditCaLamViec(e.target.value)}
+                  required
+                >
+                  <option value="">-- Chọn ca làm việc --</option>
+                  {caLamViecs.map(ca => (
+                    <option key={ca.id} value={ca.id}>
+                      {ca.tenCaLamViec} ({ca.kyHieuChamCong?.maKyHieu || 'N/A'})
                     </option>
                   ))}
                 </select>
               </div>
+
+              {/* *** FIXED: Ký hiệu chấm công CHỈ cho trạng thái NGHỈ *** */}
+              {editStatus === 'NGHỈ' && (
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Ký hiệu chấm công:</label>
+                  <select
+                    className="form-select"
+                    value={editSymbol}
+                    onChange={(e) => setEditSymbol(e.target.value)}
+                    required
+                  >
+                    <option value="-">- (Xóa bản ghi)</option>
+                    {availableLeaveSymbols.map(symbolCode => {
+                      const kyHieu = kyHieuChamCongs.find(kh => kh.maKyHieu === symbolCode);
+                      return (
+                        <option key={symbolCode} value={symbolCode}>
+                          {symbolCode} - {kyHieu?.tenKyHieu || 'N/A'}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* *** HIỂN THỊ THÔNG TIN VỀ KÝ HIỆU CHO TRẠNG THÁI LÀM *** */}
+              {editStatus === 'LÀM' && (
+                <div className="alert alert-info">
+                  <i className="ri-information-line me-2"></i>
+                  <strong>Lưu ý:</strong> Khi trạng thái là "Làm", ký hiệu chấm công sẽ được tự động lấy từ ca làm việc được chọn.
+                  Bạn không cần chọn ký hiệu riêng.
+                </div>
+              )}
+
+              {/* Ghi chú (chỉ cho trạng thái NGHỈ) */}
+              {editStatus === 'NGHỈ' && (
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Ghi chú:</label>
+                  <textarea
+                    className="form-control"
+                    value={editGhiChu}
+                    onChange={(e) => setEditGhiChu(e.target.value)}
+                    placeholder="Nhập ghi chú (tùy chọn)"
+                    rows="3"
+                  />
+                </div>
+              )}
+
               <div className="alert alert-info">
                 <i className="ri-information-line me-2"></i>
                 <small>
-                  Thay đổi sẽ được áp dụng ngay lập tức và cập nhật cả bảng tổng hợp.
+                  Bạn đang cập nhật <strong>ca {shiftName}</strong> cho nhân viên <strong>{employee?.hoTen}</strong>
+                  vào ngày <strong>{editingCell.day}/{selectedMonth}/{selectedYear}</strong>.
                 </small>
+              </div>
+
+              {/* *** THÊM MỚI: Hiển thị thông tin hiện tại của cả 2 ca *** */}
+              <div className="card bg-light">
+                <div className="card-body p-3">
+                  <h6 className="card-title mb-2">
+                    <i className="ri-information-line me-1"></i>
+                    Thông tin chấm công hiện tại:
+                  </h6>
+                  <div className="row">
+                    <div className="col-6">
+                      <small className="text-muted">Ca Sáng:</small>
+                      <div className="fw-semibold">
+                        {chamCongData[employee?.id]?.[1]?.[editingCell.day] || '-'}
+                      </div>
+                    </div>
+                    <div className="col-6">
+                      <small className="text-muted">Ca Chiều:</small>
+                      <div className="fw-semibold">
+                        {chamCongData[employee?.id]?.[2]?.[editingCell.day] || '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="modal-footer">
@@ -114,9 +329,13 @@ function QuanLyBangChamCong() {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleSymbolUpdate}
+                disabled={
+                  !editCaLamViec || // Luôn cần ca làm việc
+                  (editStatus === 'NGHỈ' && !editSymbol) // Chỉ cần ký hiệu khi NGHỈ
+                }
               >
                 <i className="ri-save-line me-1"></i>
-                Lưu thay đổi
+                Cập nhật ca {shiftName}
               </button>
             </div>
           </div>
@@ -125,55 +344,181 @@ function QuanLyBangChamCong() {
     );
   };
 
+
   const handleSymbolUpdate = async () => {
     if (!editingCell) return;
 
     try {
-      const { employeeId, day, shift } = editingCell;
+      const { employeeId, day } = editingCell;
+      const targetShift = editShift;
 
-      const response = await axiosInstance.put('/chamcong/update-symbol', {
-        nhanVienId: employeeId,
-        day: day,
-        shift: shift,
-        month: selectedMonth,
-        year: selectedYear,
-        newSymbol: editSymbol
+      console.log('🔄 handleSymbolUpdate called with:', {
+        employeeId,
+        day,
+        targetShift,
+        editStatus,
+        editSymbol,
+        editCaLamViec
       });
 
-      // Cập nhật state local
-      setChamCongData(prevData => {
-        const newData = { ...prevData };
+      // *** FIXED: Xử lý riêng cho trạng thái LÀM và NGHỈ ***
+      if (editStatus === 'LÀM') {
+        // *** TRẠNG THÁI LÀM: Không cần ký hiệu, sử dụng API update-full ***
+        await updateFullAttendanceRecord(employeeId, day, targetShift);
 
-        if (!newData[employeeId]) {
-          newData[employeeId] = { 1: {}, 2: {} };
-        }
+        // Update state local với ký hiệu từ ca làm việc
+        const selectedCaLamViec = caLamViecs.find(ca => ca.id.toString() === editCaLamViec);
+        const newSymbol = selectedCaLamViec?.kyHieuChamCong?.maKyHieu || 'X';
 
-        // Cập nhật ký hiệu mới
-        newData[employeeId][shift][day] = editSymbol;
+        setChamCongData(prevData => {
+          const newData = { ...prevData };
+          if (!newData[employeeId]) {
+            newData[employeeId] = { 1: {}, 2: {} };
+          }
+          newData[employeeId][targetShift][day] = newSymbol;
+          return newData;
+        });
 
-        // Nếu ký hiệu là "-", xóa khỏi dữ liệu
+      } else if (editStatus === 'NGHỈ') {
+        // *** TRẠNG THÁI NGHỈ: Cần ký hiệu, có thể dùng API update-symbol hoặc update-full ***
         if (editSymbol === '-') {
-          delete newData[employeeId][shift][day];
+          // Xóa bản ghi
+          const symbolPayload = {
+            nhanVienId: employeeId,
+            day: day,
+            shift: targetShift,
+            month: selectedMonth,
+            year: selectedYear,
+            newSymbol: '-'
+          };
+          await axiosInstance.put('/chamcong/update-symbol', symbolPayload);
+        } else {
+          // Cập nhật trạng thái NGHỈ với ký hiệu
+          await updateFullAttendanceRecord(employeeId, day, targetShift);
         }
 
-        return newData;
-      });
+        // Update state local
+        setChamCongData(prevData => {
+          const newData = { ...prevData };
+          if (!newData[employeeId]) {
+            newData[employeeId] = { 1: {}, 2: {} };
+          }
 
-      // Đóng modal
-      setShowEditModal(false);
-      setEditingCell(null);
-      setEditSymbol('');
+          if (editSymbol === '-') {
+            delete newData[employeeId][targetShift][day];
+          } else {
+            newData[employeeId][targetShift][day] = editSymbol;
+          }
 
-      toast.success('Cập nhật ký hiệu chấm công thành công!');
+          return newData;
+        });
+      }
 
-      // Tự động làm mới để đồng bộ dữ liệu từ server
+      // Đóng modal và reset
+      handleModalClose();
+      toast.success(`Cập nhật ca ${targetShift === 1 ? 'sáng' : 'chiều'} thành công!`);
+
+      // Tự động làm mới
       setTimeout(() => {
         fetchData(false);
       }, 500);
 
     } catch (error) {
-      console.error('Lỗi khi cập nhật ký hiệu:', error);
-      toast.error(`Lỗi: ${error.response?.data?.error || error.message}`);
+      console.error('❌ Lỗi khi cập nhật chấm công:', error);
+
+      // *** XFIX: Xử lý lỗi chi tiết hơn ***
+      let errorMessage = 'Lỗi khi cập nhật chấm công';
+
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message.includes('unique result')) {
+        errorMessage = 'Có nhiều bản ghi chấm công cho ngày này. Vui lòng liên hệ quản trị viên để xử lý.';
+      } else {
+        errorMessage = error.message;
+      }
+
+      toast.error(`Lỗi: ${errorMessage}`);
+    }
+  };
+
+  // Hàm xác định trạng thái từ ký hiệu
+  const getStatusFromSymbol = (symbol) => {
+    const workSymbols = ['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'];
+    return workSymbols.includes(symbol) ? 'LÀM' : 'NGHỈ';
+  };
+
+  // Hàm cập nhật đầy đủ bản ghi chấm công
+  const updateFullAttendanceRecord = async (employeeId, day, shift) => {
+    try {
+      // Bước 1: Tìm bản ghi chấm công hiện có
+      const attendanceRecord = await findAttendanceRecord(employeeId, day, shift);
+
+      if (!attendanceRecord) {
+        throw new Error('Không tìm thấy bản ghi chấm công để cập nhật');
+      }
+
+      console.log('🔍 Found attendance record:', {
+        id: attendanceRecord.id,
+        currentStatus: attendanceRecord.trangThaiChamCong?.tenTrangThai,
+        currentSymbol: attendanceRecord.kyHieuChamCong?.maKyHieu,
+        currentCaLamViec: attendanceRecord.caLamViec?.id
+      });
+
+      // *** BƯỚC 2: Tạo payload tương ứng với trạng thái mới ***
+      const updatePayload = {
+        trangThai: editStatus,
+        caLamViecId: parseInt(editCaLamViec)
+      };
+
+      // *** CHỈ THÊM KÝ HIỆU VÀ GHI CHÚ KHI TRẠNG THÁI LÀ NGHỈ ***
+      if (editStatus === 'NGHỈ') {
+        updatePayload.maKyHieuChamCong = editSymbol;
+        updatePayload.ghiChu = editGhiChu;
+      }
+      // *** KHI TRẠNG THÁI LÀM: Không gửi maKyHieuChamCong và ghiChu ***
+
+      console.log('📤 Update payload:', updatePayload);
+
+      // Bước 3: Cập nhật qua API /{id}/trangthai
+      const response = await axiosInstance.put(`/chamcong/${attendanceRecord.id}/trangthai`, updatePayload);
+
+      console.log('✅ Update successful:', response.data);
+      return response.data;
+
+    } catch (error) {
+      console.error('❌ Error in updateFullAttendanceRecord:', error);
+      throw error;
+    }
+  };
+
+  // Hàm tìm bản ghi chấm công cụ thể
+  const findAttendanceRecord = async (employeeId, day, shift) => {
+    try {
+      // Gọi API để lấy lịch sử chấm công của ngày cụ thể
+      const dateStr = `${String(day).padStart(2, '0')}-${String(selectedMonth).padStart(2, '0')}-${selectedYear}`;
+
+      const response = await axiosInstance.get('/chamcong/chitiet-homnay', {
+        params: {
+          nhanVienId: employeeId,
+          filterDate: dateStr
+        }
+      });
+
+      const records = response.data;
+
+      // Sắp xếp theo thời gian và lấy bản ghi theo shift
+      records.sort((a, b) => new Date(a.thoiGianCheckIn) - new Date(b.thoiGianCheckIn));
+
+      if (shift === 1 && records.length >= 1) {
+        return records[0]; // Ca sáng - bản ghi đầu tiên
+      } else if (shift === 2 && records.length >= 2) {
+        return records[1]; // Ca chiều - bản ghi thứ hai
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Lỗi khi tìm bản ghi chấm công:', error);
+      return null;
     }
   };
 
@@ -181,11 +526,32 @@ function QuanLyBangChamCong() {
     setShowEditModal(false);
     setEditingCell(null);
     setEditSymbol('');
+    setEditStatus('LÀM');
+    setEditCaLamViec('');
+    setEditGhiChu('');
+    setEditShift(1); // *** THÊM MỚI: Reset shift ***
   };
 
 
 
   const getKyHieuDescription = (maKyHieu, kyHieuChamCongs) => {
+    // Các ký hiệu làm việc có mô tả mặc định
+    const workSymbolDescriptions = {
+      'X': 'Làm việc bình thường',
+      'VT': 'Làm việc vượt thời gian',
+      'RT': 'Làm việc nghỉ thường',
+      'S': 'Làm việc sáng',
+      'C': 'Làm việc chiều',
+      'T': 'Làm việc tối',
+      'T12': 'Làm việc 12 tiếng',
+      'T16': 'Làm việc 16 tiếng',
+      'CT': 'Làm việc ca tối'
+    };
+
+    if (workSymbolDescriptions[maKyHieu]) {
+      return workSymbolDescriptions[maKyHieu];
+    }
+
     const kyHieu = kyHieuChamCongs.find(kh => kh.maKyHieu === maKyHieu);
     return kyHieu ? kyHieu.tenKyHieu : maKyHieu || 'Không xác định';
   };
@@ -736,8 +1102,10 @@ function QuanLyBangChamCong() {
 
         console.log(`📈 Average data completeness: ${avgCompleteness.toFixed(1)}%`);
 
-        if (avgCompleteness < 50) {
+        // Chỉ hiển thị thông báo completion 1 lần duy nhất
+        if (avgCompleteness < 100 && !hasShownCompletionToast && showNoDataToast) {
           toast.warning(`Dữ liệu chấm công chưa đầy đủ (${avgCompleteness.toFixed(1)}% hoàn thành)`);
+          setHasShownCompletionToast(true);
         }
       }
 
@@ -843,6 +1211,7 @@ function QuanLyBangChamCong() {
   // Tải dữ liệu khi thay đổi khoa phòng, tháng hoặc năm
   useEffect(() => {
     if (isInitialized) {
+      setHasShownCompletionToast(false); // Reset toast state
       fetchData(true);
     }
   }, [selectedKhoaPhongId, selectedMonth, selectedYear, fetchData, isInitialized]);
@@ -885,6 +1254,20 @@ function QuanLyBangChamCong() {
     return () => {
       document.head.removeChild(style);
     };
+  }, []);
+
+  // Thêm vào hàm fetchData hoặc tạo useEffect riêng
+  useEffect(() => {
+    const fetchCaLamViecs = async () => {
+      try {
+        const caLamViecResponse = await axiosInstance.get('/ca-lam-viec');
+        setCaLamViecs(caLamViecResponse.data);
+      } catch (error) {
+        console.error('Error loading ca lam viec:', error);
+      }
+    };
+
+    fetchCaLamViecs();
   }, []);
 
   // Hàm để lấy màu sắc cho ký hiệu
@@ -952,7 +1335,7 @@ function QuanLyBangChamCong() {
       worksheet.getCell(1, Math.floor(totalCols / 2) + 1).value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
 
       worksheet.mergeCells(2, 1, 2, Math.floor(totalCols / 2));
-      worksheet.getCell(2, 1).value = `PHÒNG ${khoaPhongName}`;
+      worksheet.getCell(2, 1).value = `KHOA/PHÒNG ${khoaPhongName}`;
 
       worksheet.mergeCells(2, Math.floor(totalCols / 2) + 1, 2, totalCols);
       worksheet.getCell(2, Math.floor(totalCols / 2) + 1).value = 'Độc lập - Tự do - Hạnh phúc';
@@ -1287,7 +1670,7 @@ function QuanLyBangChamCong() {
       worksheet.getCell(1, Math.floor(totalDetailCols / 2) + 1).value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
 
       worksheet.mergeCells(2, 1, 2, Math.floor(totalDetailCols / 2));
-      worksheet.getCell(2, 1).value = `PHÒNG ${khoaPhongName}`;
+      worksheet.getCell(2, 1).value = `KHOA/PHÒNG ${khoaPhongName}`;
 
       worksheet.mergeCells(2, Math.floor(totalDetailCols / 2) + 1, 2, totalDetailCols);
       worksheet.getCell(2, Math.floor(totalDetailCols / 2) + 1).value = 'Độc lập - Tự do - Hạnh phúc';
@@ -1993,7 +2376,7 @@ function QuanLyBangChamCong() {
         worksheet.getCell(1, Math.floor(totalCols / 2) + 1).value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
 
         worksheet.mergeCells(2, 1, 2, Math.floor(totalCols / 2));
-        worksheet.getCell(2, 1).value = `PHÒNG ${khoaPhongName}`;
+        worksheet.getCell(2, 1).value = `KHOA/PHÒNG ${khoaPhongName}`;
 
         worksheet.mergeCells(2, Math.floor(totalCols / 2) + 1, 2, totalCols);
         worksheet.getCell(2, Math.floor(totalCols / 2) + 1).value = 'Độc lập - Tự do - Hạnh phúc';
