@@ -602,6 +602,7 @@ function QuanLyBangChamCong() {
 
   // *** SỬA CUỐI CÙNG CHO HÀM calculateSummaryData ***
 
+
   const calculateSummaryData = useCallback(() => {
     const summary = filteredEmployees.map(nv => {
       const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
@@ -624,11 +625,12 @@ function QuanLyBangChamCong() {
         const shift2Symbol = employeeData[2][day] || '-';
 
         // A. Số ngày làm việc (mỗi ca = 0.5, 1 ngày = 1.0)
-        // Các ký hiệu làm việc: X, VT, RT, S, C, T, T12, T16, CT
-        if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift1Symbol)) {
+        // *** FIX: THÊM "NB" VÀO DANH SÁCH LÀM VIỆC ***
+        // Các ký hiệu làm việc: X, VT, RT, S, C, T, T12, T16, CT, NB
+        if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT', 'NB'].includes(shift1Symbol)) {
           workDaysA += 0.5;
         }
-        if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT'].includes(shift2Symbol)) {
+        if (['X', 'VT', 'RT', 'S', 'C', 'T', 'T12', 'T16', 'CT', 'NB'].includes(shift2Symbol)) {
           workDaysA += 0.5;
         }
 
@@ -672,25 +674,26 @@ function QuanLyBangChamCong() {
           absentNotes.push(`Học/Hội: ${day} (ca chiều)`);
         }
 
-        // F. Khác (các loại còn lại: DL, NB, N, No, K)
-        if (['DL', 'NB', 'N', 'No', 'K'].includes(shift1Symbol)) {
+        // F. Khác (các loại còn lại: DL, N, No, K)
+        // *** FIX: XÓA "NB" KHỎI DANH SÁCH NÀY ***
+        if (['DL', 'N', 'No', 'K'].includes(shift1Symbol)) {
           khacDaysF += 0.5;
           absentNotes.push(`Khác (${shift1Symbol}): ${day} (ca sáng)`);
         }
-        if (['DL', 'NB', 'N', 'No', 'K'].includes(shift2Symbol)) {
+        if (['DL', 'N', 'No', 'K'].includes(shift2Symbol)) {
           khacDaysF += 0.5;
           absentNotes.push(`Khác (${shift2Symbol}): ${day} (ca chiều)`);
         }
       }
 
-      // *** UPDATED: Tính toán theo yêu cầu mới ***
+      // *** Tính toán theo yêu cầu ***
       // Tổng số ngày làm (A+B) = A + B + C (bao gồm cả phép)
-      const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC; // A + B + C
+      const tongSoNgayLamAB = workDaysA + weekendDaysB; // CHỈ A + B
 
       // Tổng số ngày nghỉ (C+D+E+F) = tất cả các loại nghỉ
       const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // C + D + E + F
 
-      // *** FIX: Tổng cộng = A + B + C + D + E + F (tất cả các ngày có lý do) ***
+      // Tổng cộng = A + B + C + D + E + F (tất cả các ngày có lý do)
       const tongCong = workDaysA + weekendDaysB + phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF;
 
       // Tạo ghi chú đơn giản
@@ -705,7 +708,7 @@ function QuanLyBangChamCong() {
       }
 
       if (bhxhDaysD > 0) {
-        noteArray.push(`- BHXH: ${bhxhDaysD.toFixed(1)}`);  // ✅ FIXED: Ghi chú BHXH đúng
+        noteArray.push(`- BHXH: ${bhxhDaysD.toFixed(1)}`);
       }
 
       if (hocHoiDaysE > 0) {
@@ -721,14 +724,14 @@ function QuanLyBangChamCong() {
       return {
         ...nv,
         workDaysA: workDaysA.toFixed(1),
-        weekendDaysB: weekendDaysB.toFixed(1), // Chỉ N1
+        weekendDaysB: weekendDaysB.toFixed(1),
         phepDaysC: phepDaysC.toFixed(1),
-        bhxhDaysD: bhxhDaysD.toFixed(1),  // ✅ FIXED: Bao gồm tất cả BHXH
+        bhxhDaysD: bhxhDaysD.toFixed(1),
         hocHoiDaysE: hocHoiDaysE.toFixed(1),
-        khacDaysF: khacDaysF.toFixed(1),  // ✅ FIXED: Chỉ còn DL, NB, N, No, K
-        tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1), // A + B + C
-        tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1), // C + D + E + F
-        tongCong: tongCong.toFixed(1), // *** FIXED: A + B + C + D + E + F ***
+        khacDaysF: khacDaysF.toFixed(1),
+        tongSoNgayLamAB: tongSoNgayLamAB.toFixed(1),
+        tongSoNgayNghiCDEF: tongSoNgayNghiCDEF.toFixed(1),
+        tongCong: tongCong.toFixed(1),
         note
       };
     });
@@ -2319,7 +2322,7 @@ function QuanLyBangChamCong() {
           }
 
           // *** TÍNH TOÁN THEO CÙNG LOGIC VỚI calculateSummaryData ***
-          const tongSoNgayLamAB = workDaysA + weekendDaysB + phepDaysC; // A + B + C
+          const tongSoNgayLamAB = workDaysA + weekendDaysB; // CHỈ A + B
           const tongSoNgayNghiCDEF = phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // C + D + E + F
           const tongCong = workDaysA + weekendDaysB + phepDaysC + bhxhDaysD + hocHoiDaysE + khacDaysF; // A + B + C + D + E + F
 
