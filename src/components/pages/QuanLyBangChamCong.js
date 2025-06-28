@@ -1386,16 +1386,36 @@ function QuanLyBangChamCong() {
       }
 
       // Header tổng hợp (merge theo chiều dọc)
+      // Header tổng hợp (merge theo chiều dọc) với màu sắc
       const summaryHeaders = [
-        'Số ngày làm việc (A)', 'Ngày nghỉ không làm việc (B)', 'Phép (C)', 'BHXH (D)',
-        'Học/Hội nghị/Tập huấn (E)', 'Khác (F)', 'Tổng ngày làm (A+B)',
-        'Tổng ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú'
+        { text: 'Số ngày làm việc (A)', color: 'FFFFA500' }, // Màu cam
+        { text: 'Ngày nghỉ không làm việc (B)', color: 'FFFF6B6B' }, // Màu đỏ nhạt
+        { text: 'Phép (C)', color: 'FF51CF66' }, // Màu xanh lá
+        { text: 'BHXH (D)', color: 'FF74C0FC' }, // Màu xanh dương nhạt
+        { text: 'Học/Hội nghị/Tập huấn (E)', color: 'FFFFD43B' }, // Màu vàng
+        { text: 'Khác (F)', color: 'FFE6F3FF' }, // Màu xanh nhạt
+        { text: 'Tổng ngày làm (A+B)', color: 'FF69DB7C' }, // Màu xanh lá đậm
+        { text: 'Tổng ngày nghỉ (C+D+E+F)', color: 'FFFF8787' }, // Màu đỏ đậm
+        { text: 'Tổng cộng', color: 'FFFFD93D' }, // Màu vàng đậm
+        { text: 'Ghi chú', color: 'FFE6F3FF' } // Màu xanh nhạt
       ];
 
-      summaryHeaders.forEach((header, index) => {
+      summaryHeaders.forEach((headerObj, index) => {
         const col = 6 + daysInMonth + index;
         worksheet.mergeCells(headerRow, col, headerRow + 2, col);
-        worksheet.getCell(headerRow, col).value = header;
+        const cell = worksheet.getCell(headerRow, col);
+        cell.value = headerObj.text;
+
+        // Áp dụng style với màu nền cho header tổng hợp
+        cell.style = {
+          font: { name: 'Times New Roman', size: 10, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: headerObj.color } },
+          border: {
+            top: { style: 'thin' }, bottom: { style: 'thin' },
+            left: { style: 'thin' }, right: { style: 'thin' }
+          }
+        };
       });
 
       // 4. DỮ LIỆU NHÂN VIÊN
@@ -1430,6 +1450,7 @@ function QuanLyBangChamCong() {
         }
 
         // Merge dữ liệu tổng hợp qua 2 dòng
+        // Merge dữ liệu tổng hợp qua 2 dòng với logic hiển thị "-" cho 0.0
         const summaryValues = [
           nv.workDaysA, nv.weekendDaysB, nv.phepDaysC, nv.bhxhDaysD,
           nv.hocHoiDaysE, nv.khacDaysF, nv.tongSoNgayLamAB,
@@ -1439,7 +1460,12 @@ function QuanLyBangChamCong() {
         summaryValues.forEach((data, index) => {
           const col = 6 + daysInMonth + index;
           worksheet.mergeCells(currentRow, col, currentRow + 1, col);
-          worksheet.getCell(currentRow, col).value = data;
+          // Hiển thị "-" thay vì "0.0" cho các cột số (trừ cột note - index 9)
+          if (index < 9) { // Các cột số
+            worksheet.getCell(currentRow, col).value = data === '0.0' ? '-' : data;
+          } else { // Cột note
+            worksheet.getCell(currentRow, col).value = data;
+          }
         });
 
         currentRow += 2;
@@ -1475,9 +1501,13 @@ function QuanLyBangChamCong() {
       };
 
       // Áp dụng style cho tất cả header cells
+      // Áp dụng style cho header cells (trừ các cột tổng hợp đã có màu riêng)
       for (let row = headerRow; row <= headerRow + 2; row++) {
         for (let col = 1; col <= totalCols; col++) {
-          worksheet.getCell(row, col).style = headerStyle;
+          // Chỉ áp dụng style mặc định cho các cột không phải tổng hợp
+          if (col < 6 + daysInMonth || col > 6 + daysInMonth + 9) {
+            worksheet.getCell(row, col).style = headerStyle;
+          }
         }
       }
 
@@ -2422,16 +2452,36 @@ function QuanLyBangChamCong() {
           worksheet.getCell(headerRow + 2, 5 + i).value = dayName;
         }
 
+        // Header tổng hợp với màu sắc cho xuất Excel theo năm
         const summaryHeaders = [
-          'Số ngày làm việc (A)', 'Ngày nghỉ không làm việc (B)', 'Phép (C)', 'BHXH (D)',
-          'Học/Hội nghị/Tập huấn (E)', 'Khác (F)', 'Tổng ngày làm (A+B)',
-          'Tổng ngày nghỉ (C+D+E+F)', 'Tổng cộng', 'Ghi chú'
+          { text: 'Số ngày làm việc (A)', color: 'FFFFA500' }, // Màu cam
+          { text: 'Ngày nghỉ không làm việc (B)', color: 'FFFF6B6B' }, // Màu đỏ nhạt
+          { text: 'Phép (C)', color: 'FF51CF66' }, // Màu xanh lá
+          { text: 'BHXH (D)', color: 'FF74C0FC' }, // Màu xanh dương nhạt
+          { text: 'Học/Hội nghị/Tập huấn (E)', color: 'FFFFD43B' }, // Màu vàng
+          { text: 'Khác (F)', color: 'FFE6F3FF' }, // Màu xanh nhạt
+          { text: 'Tổng ngày làm (A+B)', color: 'FF69DB7C' }, // Màu xanh lá đậm
+          { text: 'Tổng ngày nghỉ (C+D+E+F)', color: 'FFFF8787' }, // Màu đỏ đậm
+          { text: 'Tổng cộng', color: 'FFFFD93D' }, // Màu vàng đậm
+          { text: 'Ghi chú', color: 'FFE6F3FF' } // Màu xanh nhạt
         ];
 
-        summaryHeaders.forEach((header, index) => {
+        summaryHeaders.forEach((headerObj, index) => {
           const col = 6 + monthDaysInMonth + index;
           worksheet.mergeCells(headerRow, col, headerRow + 2, col);
-          worksheet.getCell(headerRow, col).value = header;
+          const cell = worksheet.getCell(headerRow, col);
+          cell.value = headerObj.text;
+
+          // Áp dụng style với màu nền cho header tổng hợp
+          cell.style = {
+            font: { name: 'Times New Roman', size: 10, bold: true },
+            alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: headerObj.color } },
+            border: {
+              top: { style: 'thin' }, bottom: { style: 'thin' },
+              left: { style: 'thin' }, right: { style: 'thin' }
+            }
+          };
         });
 
         // 4. DỮ LIỆU NHÂN VIÊN - *** SỬ DỤNG DỮ LIỆU ĐÃ TÍNH TOÁN ***
@@ -2478,7 +2528,12 @@ function QuanLyBangChamCong() {
           summaryValues.forEach((data, index) => {
             const col = 6 + monthDaysInMonth + index;
             worksheet.mergeCells(currentRow, col, currentRow + 1, col);
-            worksheet.getCell(currentRow, col).value = data;
+            // Hiển thị "-" thay vì "0.0" cho các cột số (trừ cột note - index 9)
+            if (index < 9) { // Các cột số
+              worksheet.getCell(currentRow, col).value = data === '0.0' ? '-' : data;
+            } else { // Cột note
+              worksheet.getCell(currentRow, col).value = data;
+            }
           });
 
           currentRow += 2;
@@ -2514,12 +2569,15 @@ function QuanLyBangChamCong() {
           }
         };
 
+        // Áp dụng style cho header cells (trừ các cột tổng hợp đã có màu riêng)
         for (let row = headerRow; row <= headerRow + 2; row++) {
           for (let col = 1; col <= totalCols; col++) {
-            worksheet.getCell(row, col).style = headerStyle;
+            // Chỉ áp dụng style mặc định cho các cột không phải tổng hợp
+            if (col < 6 + monthDaysInMonth || col > 6 + monthDaysInMonth + 9) {
+              worksheet.getCell(row, col).style = headerStyle;
+            }
           }
         }
-
         const dataStyle = {
           font: { name: 'Times New Roman', size: 9 },
           alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
@@ -3136,32 +3194,34 @@ function QuanLyBangChamCong() {
                               })}
 
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f3ff' }}>
-                                {summaryItem?.workDaysA || '0.0'}
+                                {summaryItem?.workDaysA === '0.0' ? '-' : summaryItem?.workDaysA || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#ffe6e6' }}>
-                                {summaryItem?.weekendDaysB || '0.0'}
+                                {summaryItem?.weekendDaysB === '0.0' ? '-' : summaryItem?.weekendDaysB || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6ffe6' }}>
-                                {summaryItem?.phepDaysC || '0.0'}
+                                {summaryItem?.phepDaysC === '0.0' ? '-' : summaryItem?.phepDaysC || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f0ff' }}>
-                                {summaryItem?.bhxhDaysD || '0.0'}
+                                {summaryItem?.bhxhDaysD === '0.0' ? '-' : summaryItem?.bhxhDaysD || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3e6' }}>
-                                {summaryItem?.hocHoiDaysE || '0.0'}
+                                {summaryItem?.hocHoiDaysE === '0.0' ? '-' : summaryItem?.hocHoiDaysE || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f0f0f0' }}>
-                                {summaryItem?.khacDaysF || '0.0'}
+                                {summaryItem?.khacDaysF === '0.0' ? '-' : summaryItem?.khacDaysF || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#d9f2e6' }}>
-                                {summaryItem?.tongSoNgayLamAB || '0.0'}
+                                {summaryItem?.tongSoNgayLamAB === '0.0' ? '-' : summaryItem?.tongSoNgayLamAB || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#ffe6e6' }}>
-                                {summaryItem?.tongSoNgayNghiCDEF || '0.0'}
+                                {summaryItem?.tongSoNgayNghiCDEF === '0.0' ? '-' : summaryItem?.tongSoNgayNghiCDEF || '-'}
                               </td>
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff9e6' }}>
-                                {summaryItem?.tongCong || '0.0'}
+                                {summaryItem?.tongCong === '0.0' ? '-' : summaryItem?.tongCong || '-'}
                               </td>
+
+
                               <td rowSpan="2" className="align-middle py-2" style={{
                                 fontSize: '11px',
                                 whiteSpace: 'pre-line',

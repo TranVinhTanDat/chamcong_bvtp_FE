@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosInstance';
 import ChangePasswordModal from '../modals/ChangePasswordModal';
 import UserProfileModal from '../modals/UserProfileModal';
-import logoTanPhu from '../assets/images/logo tan phu_hinh.png';
+import logoTanPhu from '../assets/images/logo_tan_phu_hinh.png';
 
 function Navbar() {
   const navigate = useNavigate();
