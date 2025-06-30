@@ -17,6 +17,18 @@ const isTokenValid = (token) => {
   }
 };
 
+// Hàm lấy username từ token
+const getUsernameFromToken = (token) => {
+  if (!token) return '';
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.username || payload.sub || '';
+  } catch (error) {
+    return '';
+  }
+};
+
 function DangNhap() {
   const [credentials, setCredentials] = useState({ tenDangNhap: '', matKhau: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -53,11 +65,7 @@ function DangNhap() {
     
     setIsLoading(true);
     try {
-      console.log('Attempting login with:', { tenDangNhap: credentials.tenDangNhap });
-      
       const response = await axiosInstance.post('/auth/dangnhap', credentials);
-      console.log('Login response:', response.data);
-      
       const { accessToken, refreshToken, role, id, khoaPhongId } = response.data;
 
       // Kiểm tra tính hợp lệ của token nhận được
@@ -75,13 +83,14 @@ function DangNhap() {
       localStorage.setItem('userId', id);
       localStorage.setItem('khoaPhongId', khoaPhongId);
       
-      // Lưu username từ form đăng nhập
-      localStorage.setItem('tenDangNhap', credentials.tenDangNhap);
-      
-      console.log('Token saved successfully');
+      // Lấy username từ token thay vì từ API response
+      const username = getUsernameFromToken(accessToken);
+      if (username) {
+        localStorage.setItem('tenDangNhap', username);
+      }
 
       try {
-        // Gọi API để lấy thông tin chi tiết user (bao gồm tên khoa phòng)
+        // Gọi API để lấy thông tin chi tiết user
         const userProfileResponse = await axiosInstance.get('/user/current');
         const userProfile = userProfileResponse.data;
         
@@ -92,49 +101,42 @@ function DangNhap() {
         if (userProfile.hoTen) {
           localStorage.setItem('hoTen', userProfile.hoTen);
         }
-        
-        console.log('User profile loaded:', userProfile);
+        if (userProfile.tenDangNhap) {
+          localStorage.setItem('tenDangNhap', userProfile.tenDangNhap);
+        }
       } catch (profileError) {
         console.warn('Could not load user profile:', profileError);
         // Không làm gián đoạn quá trình đăng nhập nếu không lấy được profile
       }
 
-      toast.success('Đăng nhập thành công!', {
-        autoClose: 2000
-      });
-      
-      // Chờ một chút để toast hiển thị rồi chuyển trang
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 1000);
+      toast.success('Đăng nhập thành công!');
+      navigate('/', { replace: true });
       
     } catch (error) {
-      console.error('Login error:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      });
-      
-      // Xử lý các loại lỗi khác nhau
+      // Xử lý lỗi đăng nhập - CHỈ HIỂN THỊ THÔNG BÁO MỘT LẦN
       if (error.response) {
-        const { status, data } = error.response;
+        const { status } = error.response;
         
         switch (status) {
           case 401:
             toast.error('Tên đăng nhập hoặc mật khẩu không đúng!');
             break;
           case 403:
-            toast.error('Tài khoản của bạn đã bị khóa hoặc không có quyền truy cập!');
+            toast.error('Tài khoản đã bị khóa hoặc không có quyền truy cập!');
             break;
           case 500:
             toast.error('Lỗi server. Vui lòng thử lại sau!');
             break;
+          case 400:
+            toast.error('Thông tin đăng nhập không hợp lệ!');
+            break;
           default:
-            toast.error(data?.error || data?.message || 'Đăng nhập thất bại. Vui lòng thử lại!');
+            toast.error('Đăng nhập thất bại. Vui lòng thử lại!');
         }
       } else if (error.message === 'Token không hợp lệ từ server') {
         toast.error('Lỗi xác thực từ server. Vui lòng thử lại!');
-      } else {
+      } else if (error.message !== 'Token expired') {
+        // Chỉ hiển thị lỗi kết nối nếu KHÔNG phải lỗi token hết hạn
         toast.error('Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại!');
       }
     } finally {
@@ -143,25 +145,27 @@ function DangNhap() {
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center min-vh-100 bg-gradient" style={{ background: 'linear-gradient(135deg, #e0f7fa, #ffffff)' }}>
-      <div className="card p-4 shadow-lg" style={{ maxWidth: '420px', width: '100%', borderRadius: '15px' }}>
+    <div className="d-flex justify-content-center align-items-center min-vh-100 bg-gradient" 
+         style={{ background: 'linear-gradient(135deg, #e0f7fa, #ffffff)' }}>
+      <div className="card p-4 shadow-lg" 
+           style={{ maxWidth: '420px', width: '100%', borderRadius: '15px' }}>
+        
         <div className="text-center mb-4">
           <img 
             src={logoTanPhu} 
             alt="Logo Bệnh viện Tân Phú" 
             className="img-fluid" 
             style={{ maxWidth: '180px', marginBottom: '15px' }} 
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
+            onError={(e) => e.target.style.display = 'none'}
           />
           <h2 className="text-primary fw-bold">Hệ Thống Chấm Công</h2>
           <p className="text-muted">Bệnh viện Tân Phú</p>
         </div>
+
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
             <label htmlFor="tenDangNhap" className="form-label fw-medium">
-              Tên đăng nhập <span className="text-danger">*</span>
+              Tên đăng nhập
             </label>
             <input
               type="text"
@@ -177,9 +181,10 @@ function DangNhap() {
               autoFocus
             />
           </div>
+
           <div className="mb-4">
             <label htmlFor="matKhau" className="form-label fw-medium">
-              Mật khẩu <span className="text-danger">*</span>
+              Mật khẩu
             </label>
             <input
               type="password"
@@ -194,6 +199,7 @@ function DangNhap() {
               autoComplete="current-password"
             />
           </div>
+
           <button 
             type="submit" 
             className="btn btn-primary btn-lg w-100 mb-3" 

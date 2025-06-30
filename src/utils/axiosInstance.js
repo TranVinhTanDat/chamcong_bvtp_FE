@@ -19,7 +19,7 @@ const isTokenExpired = (token) => {
   }
 };
 
-// Hàm kiểm tra token sắp hết hạn (còn dưới 2 giờ)
+// Hàm kiểm tra token sắp hết hạn (còn dưới 1 giờ cho token 5 giờ)
 const isTokenExpiringSoon = (token) => {
   if (!token) return false;
   
@@ -27,10 +27,36 @@ const isTokenExpiringSoon = (token) => {
     const payload = JSON.parse(atob(token.split('.')[1]));
     const currentTime = Date.now() / 1000;
     const timeLeft = payload.exp - currentTime;
-    // Cảnh báo khi còn dưới 2 giờ (7200 giây)
-    return timeLeft < 7200 && timeLeft > 0;
+    // Cảnh báo khi còn dưới 1 giờ (3600 giây) cho token 5 giờ
+    return timeLeft < 3600 && timeLeft > 0;
   } catch (error) {
     return false;
+  }
+};
+
+// Hàm lấy thời gian còn lại của token
+const getTokenTimeLeft = (token) => {
+  if (!token) return 0;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Date.now() / 1000;
+    const timeLeft = payload.exp - currentTime;
+    return Math.max(0, timeLeft);
+  } catch (error) {
+    return 0;
+  }
+};
+
+// Hàm format thời gian còn lại
+const formatTimeLeft = (seconds) => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (hours > 0) {
+    return `${hours} giờ ${minutes} phút`;
+  } else {
+    return `${minutes} phút`;
   }
 };
 
@@ -70,10 +96,20 @@ axiosInstance.interceptors.request.use(
     
     // Cảnh báo khi token sắp hết hạn (chỉ hiển thị 1 lần)
     if (accessToken && isTokenExpiringSoon(accessToken) && !hasShownExpiringWarning) {
-      toast.warning('Phiên đăng nhập sẽ hết hạn trong 2 giờ. Vui lòng lưu công việc!', {
-        autoClose: 10000
+      const timeLeft = getTokenTimeLeft(accessToken);
+      const timeLeftFormatted = formatTimeLeft(timeLeft);
+      
+      toast.warning(`Phiên đăng nhập sẽ hết hạn sau ${timeLeftFormatted}. Vui lòng lưu công việc!`, {
+        autoClose: 10000,
+        closeOnClick: true
       });
+      
       hasShownExpiringWarning = true;
+      
+      // Reset cảnh báo sau 30 phút để có thể hiển thị lại
+      setTimeout(() => {
+        hasShownExpiringWarning = false;
+      }, 30 * 60 * 1000);
     }
     
     if (accessToken) {
@@ -94,27 +130,32 @@ axiosInstance.interceptors.response.use(
   (error) => {
     if (error.response) {
       const { status } = error.response;
+      const { config } = error;
       
       // Xử lý lỗi 401 (Unauthorized) hoặc 403 (Forbidden)
       if (status === 401 || status === 403) {
-        toast.error('Bạn đã hết thời gian token, hãy đăng nhập lại để tiếp tục sử dụng!', {
-          autoClose: false,
-          closeOnClick: true,
-          onClose: () => {
-            setTimeout(() => handleLogout(), 500);
-          }
-        });
+        // Chỉ hiển thị thông báo token hết hạn cho các endpoint KHÔNG phải đăng nhập
+        if (!config.url.includes('/auth/dangnhap')) {
+          toast.error('Bạn đã hết thời gian token, hãy đăng nhập lại để tiếp tục sử dụng!', {
+            autoClose: false,
+            closeOnClick: true,
+            onClose: () => {
+              setTimeout(() => handleLogout(), 500);
+            }
+          });
+        }
         return Promise.reject(error);
       }
       
-      // Xử lý các lỗi khác
-      if (status >= 500) {
+      // Xử lý các lỗi khác (không phải đăng nhập)
+      if (status >= 500 && !config.url.includes('/auth/')) {
         toast.error('Lỗi server. Vui lòng thử lại sau!');
       }
     } else if (error.message === 'Token expired') {
       // Đã xử lý trong request interceptor
       return Promise.reject(error);
-    } else {
+    } else if (!error.config?.url?.includes('/auth/')) {
+      // Chỉ hiển thị lỗi kết nối cho các request không phải auth
       toast.error('Lỗi kết nối. Vui lòng kiểm tra mạng!');
     }
     

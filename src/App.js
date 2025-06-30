@@ -16,6 +16,7 @@ import './components/assets/style/variables.css';
 import './components/assets/style/ChamCong.css';
 
 import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 
 // Hàm kiểm tra token có hợp lệ không
@@ -25,8 +26,8 @@ const isTokenValid = (token) => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     const currentTime = Date.now() / 1000;
-    // Thêm buffer 5 phút để tránh token hết hạn giữa chừng
-    return payload.exp > (currentTime + 300);
+    // Thêm buffer 2 phút để tránh token hết hạn giữa chừng
+    return payload.exp > (currentTime + 120);
   } catch (error) {
     console.error('Invalid token format:', error);
     return false;
@@ -47,7 +48,7 @@ const ProtectedRoute = ({ children }) => {
   }, [accessToken, navigate]);
   
   if (!accessToken || !isTokenValid(accessToken)) {
-    return null; // hoặc loading spinner
+    return null;
   }
   
   return children;
@@ -84,7 +85,7 @@ function App() {
     // Kiểm tra ngay khi component mount
     checkAuth();
 
-    // Kiểm tra định kỳ mỗi 5 phút
+    // Kiểm tra định kỳ mỗi 2 phút (cho token 5 giờ)
     const intervalId = setInterval(() => {
       const accessToken = localStorage.getItem('accessToken');
       if (accessToken && !isTokenValid(accessToken)) {
@@ -92,7 +93,7 @@ function App() {
         setIsAuthenticated(false);
         navigate('/dang-nhap', { replace: true });
       }
-    }, 5 * 60 * 1000); // 5 phút
+    }, 2 * 60 * 1000); // 2 phút
 
     // Lắng nghe sự thay đổi của localStorage
     const handleStorageChange = (e) => {
@@ -205,21 +206,24 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            {/* Route mặc định - chuyển về đăng nhập nếu chưa xác thực */}
-            <Route path="*" element={<Navigate to="/dang-nhap" replace />} />
+            {/* Route mặc định */}
+            <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/dang-nhap"} replace />} />
           </Routes>
         </div>
       </div>
+      
       <ToastContainer 
         position="top-right"
         autoClose={5000}
         hideProgressBar={false}
-        newestOnTop={false}
+        newestOnTop={true}
         closeOnClick
         rtl={false}
         pauseOnFocusLoss
         draggable
         pauseOnHover
+        theme="light"
+        limit={3}
       />
     </div>
   );
