@@ -54,10 +54,23 @@ function ChamCong() {
 
   // *** THÊM MỚI: Xử lý sửa chấm công hàng loạt cho ADMIN ***
   const handleBulkUpdate = (trangThai, shift) => {
-    // Chỉ ADMIN mới được phép
-    if (userRole !== 'ADMIN') {
-      toast.error('Chỉ ADMIN mới có quyền sửa chấm công hàng loạt!');
+    // Kiểm tra quyền
+    if (userRole !== 'ADMIN' && userRole !== 'NGUOICHAMCONG') {
+      toast.error('Chỉ ADMIN và NGUOICHAMCONG mới có quyền sửa chấm công hàng loạt!');
       return;
+    }
+
+    // Kiểm tra ngày hiện tại cho NGUOICHAMCONG
+    if (userRole === 'NGUOICHAMCONG') {
+      const today = new Date();
+      const isToday = filterYear === today.getFullYear() &&
+        filterMonth === (today.getMonth() + 1) &&
+        filterDay === today.getDate();
+
+      if (!isToday) {
+        toast.error('NGUOICHAMCONG chỉ được sửa chấm công hàng loạt trong ngày hôm nay!');
+        return;
+      }
     }
 
     // Kiểm tra khoa phòng
@@ -1054,13 +1067,13 @@ function ChamCong() {
           </div>
         </div>
 
-        {userRole === 'ADMIN' && (
+        {(userRole === 'ADMIN' || userRole === 'NGUOICHAMCONG') && (
           <div className="mb-4">
             <div className="card border-warning">
               <div className="card-header bg-warning text-dark">
                 <h6 className="mb-0">
                   <i className="ri-edit-box-line me-2"></i>
-                  Sửa chấm công hàng loạt (Chỉ ADMIN)
+                  Sửa chấm công hàng loạt {userRole === 'NGUOICHAMCONG' ? '(Chỉ trong ngày hôm nay)' : ''}
                 </h6>
               </div>
               <div className="card-body">
@@ -1076,7 +1089,18 @@ function ChamCong() {
                       <button
                         className="btn btn-outline-success"
                         onClick={() => handleBulkUpdate('LÀM', 1)}
-                        disabled={!filterKhoaPhongId}
+                        disabled={!filterKhoaPhongId || (userRole === 'NGUOICHAMCONG' && (
+                          filterYear !== new Date().getFullYear() ||
+                          filterMonth !== (new Date().getMonth() + 1) ||
+                          filterDay !== new Date().getDate()
+                        ))}
+                        title={
+                          userRole === 'NGUOICHAMCONG' && (
+                            filterYear !== new Date().getFullYear() ||
+                            filterMonth !== (new Date().getMonth() + 1) ||
+                            filterDay !== new Date().getDate()
+                          ) ? 'Chỉ được sửa trong ngày hôm nay' : ''
+                        }
                       >
                         <i className="ri-edit-line me-1"></i>
                         Sửa thành LÀM - Ca Sáng
@@ -1113,12 +1137,19 @@ function ChamCong() {
                     </div>
                   </div>
                 </div>
-                {!filterKhoaPhongId && (
-                  <div className="alert alert-warning mb-0 mt-2">
-                    <i className="ri-alert-line me-2"></i>
-                    Vui lòng chọn khoa phòng để sử dụng tính năng sửa hàng loạt
-                  </div>
-                )}
+                {(!filterKhoaPhongId || (userRole === 'NGUOICHAMCONG' && (
+                  filterYear !== new Date().getFullYear() ||
+                  filterMonth !== (new Date().getMonth() + 1) ||
+                  filterDay !== new Date().getDate()
+                ))) && (
+                    <div className="alert alert-warning mb-0 mt-2">
+                      <i className="ri-alert-line me-2"></i>
+                      {!filterKhoaPhongId
+                        ? 'Vui lòng chọn khoa phòng để sử dụng tính năng sửa hàng loạt'
+                        : 'NGUOICHAMCONG chỉ được sửa chấm công hàng loạt trong ngày hôm nay'
+                      }
+                    </div>
+                  )}
               </div>
             </div>
           </div>
@@ -1143,7 +1174,7 @@ function ChamCong() {
                   <th scope="col" className="text-start">Ca làm việc</th>
                   <th scope="col" className="text-start">Chi tiết</th>
                   <th scope="col" className="text-start">Hành động</th>
-                  {userRole === 'ADMIN' && (
+                  {(userRole === 'ADMIN' || userRole === 'NGUOICHAMCONG') && (
                     <th scope="col" className="text-start">Sửa</th>
                   )}
                 </tr>
@@ -1203,16 +1234,32 @@ function ChamCong() {
                           <td className="align-middle">
                             {renderActionButtons(nv, shift)}
                           </td>
-                          {userRole === 'ADMIN' && (
+                          {(userRole === 'ADMIN' || userRole === 'NGUOICHAMCONG') && (
                             <td className="align-middle">
                               {currentStatus ? (
-                                <button
-                                  className="btn btn-sm btn-outline-warning"
-                                  onClick={() => handleEdit(nv.id, shift)}
-                                  title="Sửa chấm công"
-                                >
-                                  <i className="ri-edit-line"></i>
-                                </button>
+                                (() => {
+                                  // Kiểm tra xem có phải đang xem ngày hôm nay không (chỉ áp dụng cho NGUOICHAMCONG)
+                                  const isToday = userRole === 'ADMIN' || (
+                                    filterYear === new Date().getFullYear() &&
+                                    filterMonth === (new Date().getMonth() + 1) &&
+                                    filterDay === new Date().getDate()
+                                  );
+
+                                  return (
+                                    <button
+                                      className="btn btn-sm btn-outline-warning"
+                                      onClick={() => handleEdit(nv.id, shift)}
+                                      title={
+                                        userRole === 'NGUOICHAMCONG' && !isToday
+                                          ? "Chỉ được sửa chấm công trong ngày hôm nay"
+                                          : "Sửa chấm công"
+                                      }
+                                      disabled={userRole === 'NGUOICHAMCONG' && !isToday}
+                                    >
+                                      <i className="ri-edit-line"></i>
+                                    </button>
+                                  );
+                                })()
                               ) : (
                                 <span className="text-muted">-</span>
                               )}
@@ -1224,7 +1271,7 @@ function ChamCong() {
                   )
                 ) : (
                   <tr>
-                    <td colSpan={userRole === 'ADMIN' ? 8 : 7} className="text-center">
+                    <td colSpan={(userRole === 'ADMIN' || userRole === 'NGUOICHAMCONG') ? 8 : 7} className="text-center">
                       Không có nhân viên nào
                     </td>
                   </tr>

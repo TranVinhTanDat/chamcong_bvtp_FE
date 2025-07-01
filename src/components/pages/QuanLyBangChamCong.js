@@ -1239,19 +1239,35 @@ function QuanLyBangChamCong() {
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      .attendance-cell-editable:hover {
-        box-shadow: inset 0 0 0 2px #007bff !important;
-        transform: scale(1.05);
-        transition: all 0.1s ease;
-        z-index: 10;
-        position: relative;
-      }
-      
-      .attendance-cell-editable:hover .edit-indicator {
-        opacity: 1 !important;
-        transform: scale(1.2);
-      }
-    `;
+    .attendance-cell-editable:hover {
+      box-shadow: 0 0 0 2px #6c7ae0 !important;
+      transform: scale(1.02);
+      transition: all 0.15s ease;
+      z-index: 10;
+      position: relative;
+      border-radius: 4px !important;
+    }
+    
+    .attendance-cell-editable:hover .edit-indicator {
+      opacity: 1 !important;
+      transform: scale(1.2);
+      background-color: #4c63d2 !important;
+    }
+
+    .table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .table th, .table td {
+      border: 1px solid #e9ecef;
+      vertical-align: middle;
+    }
+
+    .table tbody tr {
+      transition: all 0.2s ease;
+    }
+  `;
     document.head.appendChild(style);
 
     return () => {
@@ -1276,43 +1292,45 @@ function QuanLyBangChamCong() {
   // Hàm để lấy màu sắc cho ký hiệu
   const getCellStyle = (symbol) => {
     const colorMap = {
-      'X': { bg: '#008000', color: '#FFFFFF' },
-      'N1': { bg: '#007bff', color: '#fff' },
-      'VT': { bg: '#dc3545', color: '#fff' },
-      'RT': { bg: '#dc3545', color: '#fff' },
-      'PN': { bg: '#90EE90', color: '#000' },
-      'PC': { bg: '#fff3cd', color: '#000' },
-      'PT': { bg: '#fff3cd', color: '#000' },
-      'S': { bg: '#ffeaa7', color: '#000' },
-      'C': { bg: '#ffeaa7', color: '#000' },
-      'T': { bg: '#ffeaa7', color: '#000' },
-      'T12': { bg: '#ffeaa7', color: '#000' },
-      'T16': { bg: '#ffeaa7', color: '#000' },
-      'CT': { bg: '#dda0dd', color: '#000' },
-      'No': { bg: '#6c757d', color: '#fff' },
-      'N': { bg: '#6c757d', color: '#fff' },
-      'Bo': { bg: '#f8d7da', color: '#000' },
-      'Co': { bg: '#f8d7da', color: '#000' },
-      'Ts': { bg: '#f8d7da', color: '#000' },
-      'Ds': { bg: '#f8d7da', color: '#000' },
-      'KH': { bg: '#f8d7da', color: '#000' },
-      'NT': { bg: '#f8d7da', color: '#000' },
-      'DL': { bg: '#d1ecf1', color: '#000' },
-      'H': { bg: '#6610f2', color: '#fff' },
-      'Hn': { bg: '#6610f2', color: '#fff' },
-      'Hct': { bg: '#6610f2', color: '#fff' },
-      'NB': { bg: '#cce5ff', color: '#000' },
-      'K': { bg: '#fd7e14', color: '#fff' },
-      '-': { bg: '#ffffff', color: '#6c757d' },
+      'X': { bg: '#e8f5e8', color: '#2d5a2d', border: '#c3e6c3' }, // Xanh lá nhạt
+      'N1': { bg: '#e3f2fd', color: '#1565c0', border: '#bbdefb' }, // Xanh dương nhạt
+      'VT': { bg: '#fff3e0', color: '#e65100', border: '#ffcc02' }, // Cam nhạt
+      'RT': { bg: '#fff3e0', color: '#e65100', border: '#ffcc02' }, // Cam nhạt
+      'PN': { bg: '#f3e5f5', color: '#7b1fa2', border: '#ce93d8' }, // Tím nhạt
+      'PC': { bg: '#f3e5f5', color: '#7b1fa2', border: '#ce93d8' }, // Tím nhạt
+      'PT': { bg: '#f3e5f5', color: '#7b1fa2', border: '#ce93d8' }, // Tím nhạt
+      'S': { bg: '#fff8e1', color: '#f57f17', border: '#fff176' }, // Vàng nhạt
+      'C': { bg: '#fff8e1', color: '#f57f17', border: '#fff176' }, // Vàng nhạt
+      'T': { bg: '#fff8e1', color: '#f57f17', border: '#fff176' }, // Vàng nhạt
+      'T12': { bg: '#fff8e1', color: '#f57f17', border: '#fff176' }, // Vàng nhạt
+      'T16': { bg: '#fff8e1', color: '#f57f17', border: '#fff176' }, // Vàng nhạt
+      'CT': { bg: '#fce4ec', color: '#c2185b', border: '#f8bbd9' }, // Hồng nhạt
+      'No': { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' }, // Xám nhạt
+      'N': { bg: '#f5f5f5', color: '#616161', border: '#e0e0e0' }, // Xám nhạt
+      'Bo': { bg: '#ffebee', color: '#d32f2f', border: '#ffcdd2' }, // Đỏ nhạt
+      'Co': { bg: '#ffebee', color: '#d32f2f', border: '#ffcdd2' }, // Đỏ nhạt
+      'Ts': { bg: '#ffebee', color: '#d32f2f', border: '#ffcdd2' }, // Đỏ nhạt
+      'Ds': { bg: '#ffebee', color: '#d32f2f', border: '#ffcdd2' }, // Đỏ nhạt
+      'KH': { bg: '#ffebee', color: '#d32f2f', border: '#ffcdd2' }, // Đỏ nhạt
+      'NT': { bg: '#ffebee', color: '#d32f2f', border: '#ffcdd2' }, // Đỏ nhạt
+      'DL': { bg: '#e0f2f1', color: '#00695c', border: '#b2dfdb' }, // Xanh lam nhạt
+      'H': { bg: '#ede7f6', color: '#512da8', border: '#d1c4e9' }, // Tím đậm nhạt
+      'Hn': { bg: '#ede7f6', color: '#512da8', border: '#d1c4e9' }, // Tím đậm nhạt
+      'Hct': { bg: '#ede7f6', color: '#512da8', border: '#d1c4e9' }, // Tím đậm nhạt
+      'NB': { bg: '#e1f5fe', color: '#0277bd', border: '#b3e5fc' }, // Xanh da trời nhạt
+      'K': { bg: '#fff3e0', color: '#ef6c00', border: '#ffcc02' }, // Cam vàng nhạt
+      '-': { bg: '#fafafa', color: '#9e9e9e', border: '#e0e0e0' }, // Xám rất nhạt
     };
 
-    const style = colorMap[symbol] || { bg: '#f8f9fa', color: '#6c757d' };
+    const style = colorMap[symbol] || { bg: '#f8f9fa', color: '#6c757d', border: '#dee2e6' };
     return {
       backgroundColor: style.bg,
       color: style.color,
-      fontWeight: 'bold',
-      fontSize: '12px',
-      border: '1px solid #dee2e6',
+      fontWeight: '600',
+      fontSize: '11px',
+      border: `1px solid ${style.border}`,
+      borderRadius: '3px',
+      transition: 'all 0.2s ease',
     };
   };
 
@@ -2942,24 +2960,71 @@ function QuanLyBangChamCong() {
             <div className="table-responsive" style={{ maxHeight: '600px', overflowY: 'auto' }}>
               {!showSummary ? (
                 // Bảng chấm công chi tiết - FIXED: Mỗi nhân viên chỉ 1 dòng với 2 ca hiển thị trên cùng 1 dòng
-                <table className="table table-hover mb-0">
-                  <thead className="sticky-top" style={{ backgroundColor: '#4e73df', color: 'white', zIndex: 1 }}>
+                <table className="table table-hover mb-0" style={{ fontSize: '12px', borderCollapse: 'separate', borderSpacing: '0' }}>
+                  <thead className="sticky-top" style={{
+                    background: 'linear-gradient(135deg, #6c7ae0 0%, #7b68ee 100%)',
+                    color: 'white',
+                    zIndex: 1,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                  }}>
                     <tr>
-                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '60px', fontSize: '12px' }}>STT</th>
-                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Mã NV</th>
-                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '180px', fontSize: '12px' }}>Họ và Tên</th>
-                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '120px', fontSize: '12px' }}>Ngày tháng năm sinh</th>
-                      <th rowSpan="3" className="text-center align-middle py-3" style={{ minWidth: '100px', fontSize: '12px' }}>Khoa/phòng</th>
-                      <th colSpan={daysInMonth} className="text-center py-2" style={{ fontSize: '12px', color: '#ff0000' }}>NGÀY TRONG THÁNG</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{
+                        minWidth: '60px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        borderRight: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(255,255,255,0.1)'
+                      }}>STT</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{
+                        minWidth: '100px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        borderRight: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(255,255,255,0.1)'
+                      }}>Mã NV</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{
+                        minWidth: '180px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        borderRight: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(255,255,255,0.1)'
+                      }}>Họ và Tên</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{
+                        minWidth: '120px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        borderRight: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(255,255,255,0.1)'
+                      }}>Ngày tháng năm sinh</th>
+                      <th rowSpan="3" className="text-center align-middle py-3" style={{
+                        minWidth: '100px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        borderRight: '2px solid rgba(255,255,255,0.4)',
+                        background: 'rgba(255,255,255,0.1)'
+                      }}>Khoa/phòng</th>
+                      <th colSpan={daysInMonth} className="text-center py-2" style={{
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        color: '#ffffff',
+                        textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                        background: 'rgba(114, 189, 67, 0.73)',
+                        border: '2px solid rgba(255,255,255,0.3)'
+                      }}>NGÀY TRONG THÁNG</th>
                     </tr>
 
                     <tr>
                       {Array.from({ length: daysInMonth }, (_, i) => (
                         <th key={i + 1} className="text-center py-2" style={{
                           minWidth: '50px',
-                          fontSize: '11px',
-                          backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
-                          color: 'white'
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          background: isWeekend(i + 1)
+                            ? 'linear-gradient(135deg, #ff8a80 0%, #ff5722 100%)'
+                            : 'linear-gradient(135deg, #81c784 0%, #4caf50 100%)',
+                          color: 'white',
+                          borderRight: '1px solid rgba(255,255,255,0.3)',
+                          textShadow: '1px 1px 1px rgba(0,0,0,0.3)'
                         }}>
                           {i + 1}
                         </th>
@@ -2972,9 +3037,14 @@ function QuanLyBangChamCong() {
                         return (
                           <th key={i + 1} className="text-center py-2" style={{
                             minWidth: '50px',
-                            fontSize: '10px',
-                            backgroundColor: isWeekend(i + 1) ? '#dc3545' : '#4e73df',
-                            color: 'white'
+                            fontSize: '9px',
+                            fontWeight: '600',
+                            background: isWeekend(i + 1)
+                              ? 'linear-gradient(135deg, #ff8a80 0%, #ff5722 100%)'
+                              : 'linear-gradient(135deg, #81c784 0%, #4caf50 100%)',
+                            color: 'white',
+                            borderRight: '1px solid rgba(255,255,255,0.3)',
+                            textShadow: '1px 1px 1px rgba(0,0,0,0.3)'
                           }}>
                             {dayName}
                           </th>
@@ -2986,20 +3056,64 @@ function QuanLyBangChamCong() {
                     {filteredEmployees.map((nv, index) => {
                       const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
                       return (
-                        <tr key={nv.id} className="border-bottom">
-                          <td className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
+                        <tr
+                          key={nv.id}
+                          className="border-bottom"
+                          style={{
+                            backgroundColor: index % 2 === 0 ? '#fafbfc' : '#ffffff',
+                            transition: 'all 0.2s ease',
+                            borderLeft: '3px solid transparent'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.closest('tr').style.backgroundColor = '#f0f4ff';
+                            e.target.closest('tr').style.borderLeft = '3px solid #6c7ae0';
+                            e.target.closest('tr').style.transform = 'translateY(-1px)';
+                            e.target.closest('tr').style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.closest('tr').style.backgroundColor = index % 2 === 0 ? '#fafbfc' : '#ffffff';
+                            e.target.closest('tr').style.borderLeft = '3px solid transparent';
+                            e.target.closest('tr').style.transform = 'translateY(0)';
+                            e.target.closest('tr').style.boxShadow = 'none';
+                          }}
+                        >
+                          <td className="text-center align-middle py-2 fw-semibold" style={{
+                            fontSize: '11px',
+                            backgroundColor: 'rgba(108, 122, 224, 0.08)',
+                            borderRight: '1px solid #e9ecef',
+                            color: '#495057'
+                          }}>
                             {index + 1}
                           </td>
-                          <td className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
+                          <td className="text-center align-middle py-2" style={{
+                            fontSize: '10px',
+                            backgroundColor: 'rgba(108, 122, 224, 0.05)',
+                            borderRight: '1px solid #e9ecef',
+                            fontWeight: '500',
+                            color: '#6c757d'
+                          }}>
                             {nv.maNV || '-'}
                           </td>
-                          <td className="align-middle py-2 fw-semibold" style={{ fontSize: '12px' }}>
+                          <td className="align-middle py-2 fw-semibold" style={{
+                            fontSize: '11px',
+                            borderRight: '1px solid #e9ecef',
+                            paddingLeft: '12px',
+                            color: '#343a40'
+                          }}>
                             {nv.hoTen}
                           </td>
-                          <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
+                          <td className="text-center align-middle py-2" style={{
+                            fontSize: '10px',
+                            borderRight: '1px solid #e9ecef',
+                            color: '#6c757d'
+                          }}>
                             {nv.ngayThangNamSinh || 'N/A'}
                           </td>
-                          <td className="text-center align-middle py-2" style={{ fontSize: '11px' }}>
+                          <td className="text-center align-middle py-2" style={{
+                            fontSize: '10px',
+                            borderRight: '2px solid #dee2e6',
+                            color: '#6c757d'
+                          }}>
                             {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
                           </td>
 
@@ -3012,25 +3126,26 @@ function QuanLyBangChamCong() {
                                 key={day + 1}
                                 className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
                                 style={{
-                                  backgroundColor: isWeekendDay ? '#ffe6e6' : '#ffffff',
+                                  backgroundColor: isWeekendDay ? 'rgba(255, 138, 128, 0.08)' : '#ffffff',
                                   minWidth: '50px',
-                                  fontSize: '10px',
-                                  fontWeight: 'bold',
-                                  border: '1px solid #dee2e6',
+                                  border: '1px solid #e9ecef',
                                   verticalAlign: 'middle',
                                   cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
-                                  position: 'relative'
+                                  position: 'relative',
+                                  padding: '3px'
                                 }}
                               >
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                   <span
                                     style={{
                                       ...getCellStyle(shift1Symbol),
                                       display: 'inline-block',
                                       width: '100%',
-                                      padding: '1px',
-                                      borderRadius: '2px',
-                                      fontSize: '9px'
+                                      padding: '3px 2px',
+                                      fontSize: '9px',
+                                      minHeight: '18px',
+                                      lineHeight: '12px',
+                                      textAlign: 'center'
                                     }}
                                     onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 1, shift1Symbol)}
                                     title={userRole === 'ADMIN' ? 'Click để sửa ca sáng' : ''}
@@ -3042,9 +3157,11 @@ function QuanLyBangChamCong() {
                                       ...getCellStyle(shift2Symbol),
                                       display: 'inline-block',
                                       width: '100%',
-                                      padding: '1px',
-                                      borderRadius: '2px',
-                                      fontSize: '9px'
+                                      padding: '3px 2px',
+                                      fontSize: '9px',
+                                      minHeight: '18px',
+                                      lineHeight: '12px',
+                                      textAlign: 'center'
                                     }}
                                     onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 2, shift2Symbol)}
                                     title={userRole === 'ADMIN' ? 'Click để sửa ca chiều' : ''}
@@ -3059,11 +3176,12 @@ function QuanLyBangChamCong() {
                                       position: 'absolute',
                                       top: '2px',
                                       right: '2px',
-                                      width: '6px',
-                                      height: '6px',
-                                      backgroundColor: '#007bff',
+                                      width: '5px',
+                                      height: '5px',
+                                      backgroundColor: '#6c7ae0',
                                       borderRadius: '50%',
-                                      opacity: 0.7
+                                      opacity: 0.5,
+                                      boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
                                     }}
                                   />
                                 )}
