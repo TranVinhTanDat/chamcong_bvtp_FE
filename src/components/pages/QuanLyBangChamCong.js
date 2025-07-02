@@ -352,14 +352,14 @@ function QuanLyBangChamCong() {
       const { employeeId, day } = editingCell;
       const targetShift = editShift;
 
-      console.log('🔄 handleSymbolUpdate called with:', {
-        employeeId,
-        day,
-        targetShift,
-        editStatus,
-        editSymbol,
-        editCaLamViec
-      });
+      // console.log('🔄 handleSymbolUpdate called with:', {
+      //   employeeId,
+      //   day,
+      //   targetShift,
+      //   editStatus,
+      //   editSymbol,
+      //   editCaLamViec
+      // });
 
       // *** FIXED: Xử lý riêng cho trạng thái LÀM và NGHỈ ***
       if (editStatus === 'LÀM') {
@@ -424,7 +424,7 @@ function QuanLyBangChamCong() {
       }, 500);
 
     } catch (error) {
-      console.error('❌ Lỗi khi cập nhật chấm công:', error);
+      // console.error('❌ Lỗi khi cập nhật chấm công:', error);
 
       // *** XFIX: Xử lý lỗi chi tiết hơn ***
       let errorMessage = 'Lỗi khi cập nhật chấm công';
@@ -457,12 +457,12 @@ function QuanLyBangChamCong() {
         throw new Error('Không tìm thấy bản ghi chấm công để cập nhật');
       }
 
-      console.log('🔍 Found attendance record:', {
-        id: attendanceRecord.id,
-        currentStatus: attendanceRecord.trangThaiChamCong?.tenTrangThai,
-        currentSymbol: attendanceRecord.kyHieuChamCong?.maKyHieu,
-        currentCaLamViec: attendanceRecord.caLamViec?.id
-      });
+      // console.log('🔍 Found attendance record:', {
+      //   id: attendanceRecord.id,
+      //   currentStatus: attendanceRecord.trangThaiChamCong?.tenTrangThai,
+      //   currentSymbol: attendanceRecord.kyHieuChamCong?.maKyHieu,
+      //   currentCaLamViec: attendanceRecord.caLamViec?.id
+      // });
 
       // *** BƯỚC 2: Tạo payload tương ứng với trạng thái mới ***
       const updatePayload = {
@@ -482,11 +482,11 @@ function QuanLyBangChamCong() {
       // Bước 3: Cập nhật qua API /{id}/trangthai
       const response = await axiosInstance.put(`/chamcong/${attendanceRecord.id}/trangthai`, updatePayload);
 
-      console.log('✅ Update successful:', response.data);
+      // console.log('✅ Update successful:', response.data);
       return response.data;
 
     } catch (error) {
-      console.error('❌ Error in updateFullAttendanceRecord:', error);
+      // console.error('❌ Error in updateFullAttendanceRecord:', error);
       throw error;
     }
   };
@@ -517,7 +517,7 @@ function QuanLyBangChamCong() {
 
       return null;
     } catch (error) {
-      console.error('Lỗi khi tìm bản ghi chấm công:', error);
+      // console.error('Lỗi khi tìm bản ghi chấm công:', error);
       return null;
     }
   };
@@ -740,35 +740,35 @@ function QuanLyBangChamCong() {
   }, [filteredEmployees, chamCongData, daysInMonth]);
 
   // *** DEBUGGING: Log để kiểm tra logic đã fix ***
-  console.log('🎯 FINAL BHXH CALCULATION FIXED:', {
-    note: 'All BHXH symbols now properly categorized',
-    logic: {
-      A: 'Work days (X, VT, RT, S, C, T, T12, T16, CT) - 0.5 per shift',
-      B: 'Non-working rest days (N1) - 0.5 per shift',
-      C: 'Leave days (PN, PC, PT) - 0.5 per shift',
-      D: '✅ BHXH (Bo, Co, Ts, Ds, KH, NT) - 0.5 per shift', // ✅ FIXED
-      E: 'Training/Meeting (H, Hn, Hct) - 0.5 per shift',
-      F: '✅ Others (DL, NB, N, No, K) - 0.5 per shift', // ✅ FIXED
-      'Tổng số ngày làm (A+B)': 'A + B + C (includes authorized leave)',
-      'Tổng số ngày nghỉ (C+D+E+F)': 'C + D + E + F (all types of leave)',
-      'Tổng cộng': 'A + B + C + D + E + F (ALL justified attendance)'
-    },
-    bhxhSymbols: ['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'],
-    otherSymbols: ['DL', 'NB', 'N', 'No', 'K']
-  });
+  // console.log('🎯 FINAL BHXH CALCULATION FIXED:', {
+  //   note: 'All BHXH symbols now properly categorized',
+  //   logic: {
+  //     A: 'Work days (X, VT, RT, S, C, T, T12, T16, CT) - 0.5 per shift',
+  //     B: 'Non-working rest days (N1) - 0.5 per shift',
+  //     C: 'Leave days (PN, PC, PT) - 0.5 per shift',
+  //     D: '✅ BHXH (Bo, Co, Ts, Ds, KH, NT) - 0.5 per shift', // ✅ FIXED
+  //     E: 'Training/Meeting (H, Hn, Hct) - 0.5 per shift',
+  //     F: '✅ Others (DL, NB, N, No, K) - 0.5 per shift', // ✅ FIXED
+  //     'Tổng số ngày làm (A+B)': 'A + B + C (includes authorized leave)',
+  //     'Tổng số ngày nghỉ (C+D+E+F)': 'C + D + E + F (all types of leave)',
+  //     'Tổng cộng': 'A + B + C + D + E + F (ALL justified attendance)'
+  //   },
+  //   bhxhSymbols: ['Bo', 'Co', 'Ts', 'Ds', 'KH', 'NT'],
+  //   otherSymbols: ['DL', 'NB', 'N', 'No', 'K']
+  // });
 
   // DEBUGGING: Log để kiểm tra
-  console.log('Summary calculation updated:', {
-    note: 'Cột B now calculates N1 symbols instead of weekend days',
-    logic: {
-      A: 'Work days (X, VT, RT, S, C, T, T12, T16, CT) - 0.5 per shift',
-      B: 'Non-working rest days (N1) - 0.5 per shift',
-      C: 'Leave days (PN, PC, PT) - 0.5 per shift',
-      D: 'BHXH sick leave (Bo) - 0.5 per shift',
-      E: 'Training/Meeting (H, Hn, Hct) - 0.5 per shift',
-      F: 'Others (DL, NB, Co, Ts, Ds, KH, NT, N, No) - 0.5 per shift'
-    }
-  });
+  // console.log('Summary calculation updated:', {
+  //   note: 'Cột B now calculates N1 symbols instead of weekend days',
+  //   logic: {
+  //     A: 'Work days (X, VT, RT, S, C, T, T12, T16, CT) - 0.5 per shift',
+  //     B: 'Non-working rest days (N1) - 0.5 per shift',
+  //     C: 'Leave days (PN, PC, PT) - 0.5 per shift',
+  //     D: 'BHXH sick leave (Bo) - 0.5 per shift',
+  //     E: 'Training/Meeting (H, Hn, Hct) - 0.5 per shift',
+  //     F: 'Others (DL, NB, Co, Ts, Ds, KH, NT, N, No) - 0.5 per shift'
+  //   }
+  // });
 
   // Lấy danh sách khoa phòng
   const fetchKhoaPhongs = useCallback(async () => {
@@ -816,17 +816,17 @@ function QuanLyBangChamCong() {
       khoaPhongIdToUse = Number(userKhoaPhongId);
     }
 
-    console.log('🔍 fetchData Logic:', {
-      userRole,
-      userKhoaPhongId,
-      selectedKhoaPhongId,
-      khoaPhongIdToUse,
-      explanation: userRole === 'NGUOITONGHOP_1KP'
-        ? 'NGUOITONGHOP_1KP - Khóa cứng khoa phòng'
-        : userRole === 'NGUOITONGHOP' || userRole === 'ADMIN'
-          ? selectedKhoaPhongId ? 'ADMIN/NGUOITONGHOP - Chọn khoa phòng cụ thể' : 'ADMIN/NGUOITONGHOP - Tất cả khoa phòng'
-          : 'Role khác - Dùng khoa phòng của user'
-    });
+    // console.log('🔍 fetchData Logic:', {
+    //   userRole,
+    //   userKhoaPhongId,
+    //   selectedKhoaPhongId,
+    //   khoaPhongIdToUse,
+    //   explanation: userRole === 'NGUOITONGHOP_1KP'
+    //     ? 'NGUOITONGHOP_1KP - Khóa cứng khoa phòng'
+    //     : userRole === 'NGUOITONGHOP' || userRole === 'ADMIN'
+    //       ? selectedKhoaPhongId ? 'ADMIN/NGUOITONGHOP - Chọn khoa phòng cụ thể' : 'ADMIN/NGUOITONGHOP - Tất cả khoa phòng'
+    //       : 'Role khác - Dùng khoa phòng của user'
+    // });
 
     // Kiểm tra điều kiện dừng
     if (!khoaPhongIdToUse && userRole !== 'ADMIN' && userRole !== 'NGUOITONGHOP') {
@@ -1336,6 +1336,7 @@ function QuanLyBangChamCong() {
 
   // Xuất file Excel
   // Xuất file Excel với ExcelJS
+  // Xuất file Excel với ExcelJS - ĐÃ SỬA
   const exportToExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const khoaPhongName = khoaPhongs.find(kp => kp.id === selectedKhoaPhongId)?.tenKhoaPhong ||
@@ -1403,7 +1404,6 @@ function QuanLyBangChamCong() {
         worksheet.getCell(headerRow + 2, 5 + i).value = dayName;
       }
 
-      // Header tổng hợp (merge theo chiều dọc)
       // Header tổng hợp (merge theo chiều dọc) với màu sắc
       const summaryHeaders = [
         { text: 'Số ngày làm việc (A)', color: 'FFFFA500' }, // Màu cam
@@ -1467,7 +1467,6 @@ function QuanLyBangChamCong() {
           worksheet.getCell(currentRow + 1, 5 + day).value = shift2Symbol; // Ca 2
         }
 
-        // Merge dữ liệu tổng hợp qua 2 dòng
         // Merge dữ liệu tổng hợp qua 2 dòng với logic hiển thị "-" cho 0.0
         const summaryValues = [
           nv.workDaysA, nv.weekendDaysB, nv.phepDaysC, nv.bhxhDaysD,
@@ -1488,6 +1487,76 @@ function QuanLyBangChamCong() {
 
         currentRow += 2;
       });
+
+      // *** MỚI: THÊM DÒNG TỔNG CỘNG ***
+      const totalRowStart = currentRow;
+
+      // Merge các cột đầu thành 1 ô "Tổng cộng"
+      worksheet.mergeCells(totalRowStart, 1, totalRowStart, 5 + daysInMonth);
+      worksheet.getCell(totalRowStart, 1).value = '';
+
+      // Tính tổng cho các cột tổng hợp
+      let totalWorkDaysA = 0;
+      let totalWeekendDaysB = 0;
+      let totalPhepDaysC = 0;
+      let totalBhxhDaysD = 0;
+      let totalHocHoiDaysE = 0;
+      let totalKhacDaysF = 0;
+      let totalTongSoNgayLamAB = 0;
+      let totalTongSoNgayNghiCDEF = 0;
+      let totalTongCong = 0;
+
+      summaryData.forEach(nv => {
+        totalWorkDaysA += parseFloat(nv.workDaysA || 0);
+        totalWeekendDaysB += parseFloat(nv.weekendDaysB || 0);
+        totalPhepDaysC += parseFloat(nv.phepDaysC || 0);
+        totalBhxhDaysD += parseFloat(nv.bhxhDaysD || 0);
+        totalHocHoiDaysE += parseFloat(nv.hocHoiDaysE || 0);
+        totalKhacDaysF += parseFloat(nv.khacDaysF || 0);
+        totalTongSoNgayLamAB += parseFloat(nv.tongSoNgayLamAB || 0);
+        totalTongSoNgayNghiCDEF += parseFloat(nv.tongSoNgayNghiCDEF || 0);
+        totalTongCong += parseFloat(nv.tongCong || 0);
+      });
+
+      // Ghi các giá trị tổng
+      const totalValues = [
+        totalWorkDaysA.toFixed(1),
+        totalWeekendDaysB.toFixed(1),
+        totalPhepDaysC.toFixed(1),
+        totalBhxhDaysD.toFixed(1),
+        totalHocHoiDaysE.toFixed(1),
+        totalKhacDaysF.toFixed(1),
+        totalTongSoNgayLamAB.toFixed(1),
+        totalTongSoNgayNghiCDEF.toFixed(1),
+        totalTongCong.toFixed(1),
+        '' // Cột ghi chú để trống
+      ];
+
+      totalValues.forEach((value, index) => {
+        const col = 6 + daysInMonth + index;
+        if (index < 9) { // Các cột số
+          worksheet.getCell(totalRowStart, col).value = value === '0.0' ? '-' : value;
+        } else {
+          worksheet.getCell(totalRowStart, col).value = value;
+        }
+      });
+
+      // Style cho dòng tổng cộng
+      const totalRowStyle = {
+        font: { name: 'Times New Roman', size: 11, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } },
+        border: {
+          top: { style: 'medium' }, bottom: { style: 'medium' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+
+      for (let col = 1; col <= totalCols; col++) {
+        worksheet.getCell(totalRowStart, col).style = totalRowStyle;
+      }
+
+      currentRow += 1; // Cập nhật currentRow sau khi thêm dòng tổng
 
       // 5. STYLING VỚI EXCELJS
       const hospitalTitleStyle = {
@@ -1519,7 +1588,6 @@ function QuanLyBangChamCong() {
       };
 
       // Áp dụng style cho tất cả header cells
-      // Áp dụng style cho header cells (trừ các cột tổng hợp đã có màu riêng)
       for (let row = headerRow; row <= headerRow + 2; row++) {
         for (let col = 1; col <= totalCols; col++) {
           // Chỉ áp dụng style mặc định cho các cột không phải tổng hợp
@@ -1547,7 +1615,7 @@ function QuanLyBangChamCong() {
         }
       };
 
-      // Áp dụng style cho dữ liệu
+      // Áp dụng style cho dữ liệu (không bao gồm dòng tổng cộng vì đã có style riêng)
       const dataStartRow = headerRow + 3;
       const dataEndRow = dataStartRow + summaryData.length * 2 - 1;
 
@@ -1590,6 +1658,9 @@ function QuanLyBangChamCong() {
         worksheet.getRow(i).height = 18;
       }
 
+      // Chiều cao cho dòng tổng cộng
+      worksheet.getRow(totalRowStart).height = 20;
+
       // 7. TÔ MÀU CỘT CUỐI TUẦN (THỨ 7, CHỦ NHẬT) - CHO BẢNG TỔNG HỢP
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(selectedYear, selectedMonth - 1, day);
@@ -1626,8 +1697,58 @@ function QuanLyBangChamCong() {
         }
       }
 
-      // CHÚ THÍCH KÝ HIỆU
-      let legendStartRow = dataEndRow + 3;
+      // *** MỚI: THÊM CHỮ KÝ ***
+      let signatureStartRow = currentRow + 3;
+
+      // Dòng ngày tháng năm và địa điểm
+      worksheet.mergeCells(signatureStartRow, Math.floor(totalCols / 2) + 1, signatureStartRow, totalCols);
+      worksheet.getCell(signatureStartRow, Math.floor(totalCols / 2) + 1).value = `Tân Phú, ngày ... tháng ... năm ${selectedYear}`;
+      worksheet.getCell(signatureStartRow, Math.floor(totalCols / 2) + 1).style = {
+        font: { name: 'Times New Roman', size: 12, italic: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      signatureStartRow += 2;
+
+      // Dòng chức danh
+      const signatureColWidth = Math.floor(totalCols / 2);
+
+      worksheet.mergeCells(signatureStartRow, 1, signatureStartRow, signatureColWidth);
+      worksheet.getCell(signatureStartRow, 1).value = 'NGƯỜI TỔNG HỢP';
+      worksheet.getCell(signatureStartRow, 1).style = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      worksheet.mergeCells(signatureStartRow, signatureColWidth + 1, signatureStartRow, totalCols);
+      worksheet.getCell(signatureStartRow, signatureColWidth + 1).value = 'TRƯỞNG PHÒNG';
+      worksheet.getCell(signatureStartRow, signatureColWidth + 1).style = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      signatureStartRow += 1;
+
+      // Dòng hướng dẫn ký tên
+      worksheet.mergeCells(signatureStartRow, 1, signatureStartRow, signatureColWidth);
+      worksheet.getCell(signatureStartRow, 1).value = '(Ký, họ tên)';
+      worksheet.getCell(signatureStartRow, 1).style = {
+        font: { name: 'Times New Roman', size: 10, italic: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      worksheet.mergeCells(signatureStartRow, signatureColWidth + 1, signatureStartRow, totalCols);
+      worksheet.getCell(signatureStartRow, signatureColWidth + 1).value = '(Ký, họ tên)';
+      worksheet.getCell(signatureStartRow, signatureColWidth + 1).style = {
+        font: { name: 'Times New Roman', size: 10, italic: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      // Tạo khoảng trống cho chữ ký (3 dòng)
+      signatureStartRow += 4;
+
+      // *** CHÚ THÍCH KÝ HIỆU (CHUYỂN XUỐNG SAU CHỮ KÝ) ***
+      let legendStartRow = signatureStartRow;
 
       worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
       worksheet.mergeCells(legendStartRow, 1, legendStartRow, totalCols);
@@ -1913,8 +2034,58 @@ function QuanLyBangChamCong() {
         }
       }
 
-      // CHÚ THÍCH KÝ HIỆU CHO BẢNG CHI TIẾT
-      let detailLegendStartRow = detailDataEndRow + 3;
+      // *** MỚI: THÊM CHỮ KÝ CHO BẢNG CHI TIẾT ***
+      let detailSignatureStartRow = detailDataEndRow + 3;
+
+      // Dòng ngày tháng năm và địa điểm
+      worksheet.mergeCells(detailSignatureStartRow, Math.floor(totalDetailCols / 2) + 1, detailSignatureStartRow, totalDetailCols);
+      worksheet.getCell(detailSignatureStartRow, Math.floor(totalDetailCols / 2) + 1).value = `Tân Phú, ngày ... tháng ... năm ${selectedYear}`;
+      worksheet.getCell(detailSignatureStartRow, Math.floor(totalDetailCols / 2) + 1).style = {
+        font: { name: 'Times New Roman', size: 12, italic: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      detailSignatureStartRow += 2;
+
+      // Dòng chức danh
+      const detailSignatureColWidth = Math.floor(totalDetailCols / 2);
+
+      worksheet.mergeCells(detailSignatureStartRow, 1, detailSignatureStartRow, detailSignatureColWidth);
+      worksheet.getCell(detailSignatureStartRow, 1).value = 'NGƯỜI TỔNG HỢP';
+      worksheet.getCell(detailSignatureStartRow, 1).style = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      worksheet.mergeCells(detailSignatureStartRow, detailSignatureColWidth + 1, detailSignatureStartRow, totalDetailCols);
+      worksheet.getCell(detailSignatureStartRow, detailSignatureColWidth + 1).value = 'TRƯỞNG PHÒNG';
+      worksheet.getCell(detailSignatureStartRow, detailSignatureColWidth + 1).style = {
+        font: { name: 'Times New Roman', size: 12, bold: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      detailSignatureStartRow += 1;
+
+      // Dòng hướng dẫn ký tên
+      worksheet.mergeCells(detailSignatureStartRow, 1, detailSignatureStartRow, detailSignatureColWidth);
+      worksheet.getCell(detailSignatureStartRow, 1).value = '(Ký, họ tên)';
+      worksheet.getCell(detailSignatureStartRow, 1).style = {
+        font: { name: 'Times New Roman', size: 10, italic: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      worksheet.mergeCells(detailSignatureStartRow, detailSignatureColWidth + 1, detailSignatureStartRow, totalDetailCols);
+      worksheet.getCell(detailSignatureStartRow, detailSignatureColWidth + 1).value = '(Ký, họ tên)';
+      worksheet.getCell(detailSignatureStartRow, detailSignatureColWidth + 1).style = {
+        font: { name: 'Times New Roman', size: 10, italic: true },
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      };
+
+      // Tạo khoảng trống cho chữ ký (3 dòng)
+      detailSignatureStartRow += 4;
+
+      // CHÚ THÍCH KÝ HIỆU CHO BẢNG CHI TIẾT (CHUYỂN XUỐNG SAU CHỮ KÝ)
+      let detailLegendStartRow = detailSignatureStartRow;
 
       worksheet.getCell(detailLegendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
       worksheet.mergeCells(detailLegendStartRow, 1, detailLegendStartRow, totalDetailCols);
@@ -2026,6 +2197,7 @@ function QuanLyBangChamCong() {
   // Hàm xuất Excel theo năm với 12 tab tháng
   // *** THAY THẾ HÀM exportToExcelYearly HIỆN TẠI BẰNG PHIÊN BẢN NÀY ***
 
+  // Hàm xuất Excel theo năm với 12 tab tháng - HOÀN CHỈNH
   const exportToExcelYearly = async () => {
     try {
       // *** KIỂM TRA DỮ LIỆU HIỆN TẠI TRƯỚC KHI BẮT ĐẦU ***
@@ -2415,7 +2587,7 @@ function QuanLyBangChamCong() {
           };
         });
 
-        // Tạo worksheet cho tháng - PHẦN NÀY GIỮ NGUYÊN TỪ CODE CŨ
+        // Tạo worksheet cho tháng
         const worksheet = workbook.addWorksheet(`T${month}`);
         const totalCols = 5 + monthDaysInMonth + 10;
 
@@ -2557,7 +2729,76 @@ function QuanLyBangChamCong() {
           currentRow += 2;
         });
 
-        // [Các phần styling, column width, legend... giữ nguyên như code cũ]
+        // *** MỚI: THÊM DÒNG TỔNG CỘNG CHO THÁNG ***
+        const totalRowStart = currentRow;
+
+        // Merge các cột đầu thành 1 ô "Tổng cộng"
+        worksheet.mergeCells(totalRowStart, 1, totalRowStart, 5 + monthDaysInMonth);
+        worksheet.getCell(totalRowStart, 1).value = '';
+
+        // Tính tổng cho các cột tổng hợp
+        let totalWorkDaysA = 0;
+        let totalWeekendDaysB = 0;
+        let totalPhepDaysC = 0;
+        let totalBhxhDaysD = 0;
+        let totalHocHoiDaysE = 0;
+        let totalKhacDaysF = 0;
+        let totalTongSoNgayLamAB = 0;
+        let totalTongSoNgayNghiCDEF = 0;
+        let totalTongCong = 0;
+
+        monthSummaryData.forEach(nv => {
+          totalWorkDaysA += parseFloat(nv.workDaysA || 0);
+          totalWeekendDaysB += parseFloat(nv.weekendDaysB || 0);
+          totalPhepDaysC += parseFloat(nv.phepDaysC || 0);
+          totalBhxhDaysD += parseFloat(nv.bhxhDaysD || 0);
+          totalHocHoiDaysE += parseFloat(nv.hocHoiDaysE || 0);
+          totalKhacDaysF += parseFloat(nv.khacDaysF || 0);
+          totalTongSoNgayLamAB += parseFloat(nv.tongSoNgayLamAB || 0);
+          totalTongSoNgayNghiCDEF += parseFloat(nv.tongSoNgayNghiCDEF || 0);
+          totalTongCong += parseFloat(nv.tongCong || 0);
+        });
+
+        // Ghi các giá trị tổng
+        const totalValues = [
+          totalWorkDaysA.toFixed(1),
+          totalWeekendDaysB.toFixed(1),
+          totalPhepDaysC.toFixed(1),
+          totalBhxhDaysD.toFixed(1),
+          totalHocHoiDaysE.toFixed(1),
+          totalKhacDaysF.toFixed(1),
+          totalTongSoNgayLamAB.toFixed(1),
+          totalTongSoNgayNghiCDEF.toFixed(1),
+          totalTongCong.toFixed(1),
+          '' // Cột ghi chú để trống
+        ];
+
+        totalValues.forEach((value, index) => {
+          const col = 6 + monthDaysInMonth + index;
+          if (index < 9) { // Các cột số
+            worksheet.getCell(totalRowStart, col).value = value === '0.0' ? '-' : value;
+          } else {
+            worksheet.getCell(totalRowStart, col).value = value;
+          }
+        });
+
+        // Style cho dòng tổng cộng
+        const totalRowStyle = {
+          font: { name: 'Times New Roman', size: 11, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle' },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } },
+          border: {
+            top: { style: 'medium' }, bottom: { style: 'medium' },
+            left: { style: 'thin' }, right: { style: 'thin' }
+          }
+        };
+
+        for (let col = 1; col <= totalCols; col++) {
+          worksheet.getCell(totalRowStart, col).style = totalRowStyle;
+        }
+
+        currentRow += 1; // Cập nhật currentRow sau khi thêm dòng tổng
+
         // 5. STYLING
         const hospitalTitleStyle = {
           font: { name: 'Times New Roman', size: 12, bold: true },
@@ -2653,6 +2894,9 @@ function QuanLyBangChamCong() {
           worksheet.getRow(i).height = 18;
         }
 
+        // Chiều cao cho dòng tổng cộng
+        worksheet.getRow(totalRowStart).height = 20;
+
         // 7. TÔ MÀU CỘT CUỐI TUẦN
         for (let day = 1; day <= monthDaysInMonth; day++) {
           const date = new Date(selectedYearForExport, month - 1, day);
@@ -2673,7 +2917,8 @@ function QuanLyBangChamCong() {
               };
             }
 
-            for (let row = dataStartRow; row <= dataEndRow; row++) {
+            // Bao gồm cả dòng tổng cộng
+            for (let row = dataStartRow; row <= totalRowStart; row++) {
               const cell = worksheet.getCell(row, dayColumn);
               cell.style = {
                 ...cell.style,
@@ -2687,8 +2932,58 @@ function QuanLyBangChamCong() {
           }
         }
 
-        // 8. CHÚ THÍCH KÝ HIỆU
-        let legendStartRow = dataEndRow + 3;
+        // *** MỚI: THÊM CHỮ KÝ CHO THÁNG ***
+        let signatureStartRow = currentRow + 3;
+
+        // Dòng ngày tháng năm và địa điểm
+        worksheet.mergeCells(signatureStartRow, Math.floor(totalCols / 2) + 1, signatureStartRow, totalCols);
+        worksheet.getCell(signatureStartRow, Math.floor(totalCols / 2) + 1).value = `Tân Phú, ngày ... tháng ... năm ${selectedYearForExport}`;
+        worksheet.getCell(signatureStartRow, Math.floor(totalCols / 2) + 1).style = {
+          font: { name: 'Times New Roman', size: 12, italic: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        signatureStartRow += 2;
+
+        // Dòng chức danh
+        const signatureColWidth = Math.floor(totalCols / 2);
+
+        worksheet.mergeCells(signatureStartRow, 1, signatureStartRow, signatureColWidth);
+        worksheet.getCell(signatureStartRow, 1).value = 'NGƯỜI TỔNG HỢP';
+        worksheet.getCell(signatureStartRow, 1).style = {
+          font: { name: 'Times New Roman', size: 12, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        worksheet.mergeCells(signatureStartRow, signatureColWidth + 1, signatureStartRow, totalCols);
+        worksheet.getCell(signatureStartRow, signatureColWidth + 1).value = 'TRƯỞNG PHÒNG';
+        worksheet.getCell(signatureStartRow, signatureColWidth + 1).style = {
+          font: { name: 'Times New Roman', size: 12, bold: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        signatureStartRow += 1;
+
+        // Dòng hướng dẫn ký tên
+        worksheet.mergeCells(signatureStartRow, 1, signatureStartRow, signatureColWidth);
+        worksheet.getCell(signatureStartRow, 1).value = '(Ký, họ tên)';
+        worksheet.getCell(signatureStartRow, 1).style = {
+          font: { name: 'Times New Roman', size: 10, italic: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        worksheet.mergeCells(signatureStartRow, signatureColWidth + 1, signatureStartRow, totalCols);
+        worksheet.getCell(signatureStartRow, signatureColWidth + 1).value = '(Ký, họ tên)';
+        worksheet.getCell(signatureStartRow, signatureColWidth + 1).style = {
+          font: { name: 'Times New Roman', size: 10, italic: true },
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        };
+
+        // Tạo khoảng trống cho chữ ký (3 dòng)
+        signatureStartRow += 4;
+
+        // 8. CHÚ THÍCH KÝ HIỆU (CHUYỂN XUỐNG SAU CHỮ KÝ)
+        let legendStartRow = signatureStartRow;
 
         worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
         worksheet.mergeCells(legendStartRow, 1, legendStartRow, totalCols);

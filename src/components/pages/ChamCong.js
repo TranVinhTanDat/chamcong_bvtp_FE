@@ -135,7 +135,7 @@ function ChamCong() {
         })
       };
 
-      console.log('Bulk update payload:', payload);
+      // console.log('Bulk update payload:', payload);
 
       const response = await axiosInstance.put('/chamcong/update-bulk', payload);
 
@@ -351,14 +351,14 @@ function ChamCong() {
       setChamCongDetails(details);
       setSelectedCaLamViec(caLamViecMap);
 
-      console.log('Refreshed attendance data (Sequential Logic):', {
-        status,
-        details,
-        caLamViecMap,
-        filterYear,
-        filterMonth,
-        filterDay
-      });
+      // console.log('Refreshed attendance data (Sequential Logic):', {
+      //   status,
+      //   details,
+      //   caLamViecMap,
+      //   filterYear,
+      //   filterMonth,
+      //   filterDay
+      // });
     } catch (error) {
       console.error('Error refreshing attendance data:', error);
     }
@@ -551,7 +551,7 @@ function ChamCong() {
         })
       };
 
-      console.log('Bulk check-in payload:', payload);
+      // console.log('Bulk check-in payload:', payload);
 
       const response = await axiosInstance.post('/chamcong/checkin-bulk', payload);
 
@@ -661,9 +661,9 @@ function ChamCong() {
         ? formatDateForAPI(filterYear, filterMonth, filterDay)
         : null;
 
-      console.log('Submitting with filterDate:', currentFilterDate, {
-        filterYear, filterMonth, filterDay
-      });
+      // console.log('Submitting with filterDate:', currentFilterDate, {
+      //   filterYear, filterMonth, filterDay
+      // });
 
       const payload = {
         nhanVienId: nhanVienId,
@@ -756,7 +756,7 @@ function ChamCong() {
       return;
     }
 
-    console.log(`Chấm công: Employee ${validNhanVienId}, Shift ${shift}, Ca ${caLamViecId}`);
+    // console.log(`Chấm công: Employee ${validNhanVienId}, Shift ${shift}, Ca ${caLamViecId}`);
 
     try {
       // THÊM MỚI: Tạo filterDate từ các filter hiện tại (chỉ khi có đủ thông tin)
@@ -764,9 +764,9 @@ function ChamCong() {
         ? formatDateForAPI(filterYear, filterMonth, filterDay)
         : null;
 
-      console.log('Checking in with filterDate:', currentFilterDate, {
-        filterYear, filterMonth, filterDay
-      });
+      // console.log('Checking in with filterDate:', currentFilterDate, {
+      //   filterYear, filterMonth, filterDay
+      // });
 
       const payload = {
         nhanVienId: validNhanVienId,
@@ -1020,7 +1020,7 @@ function ChamCong() {
                     <button
                       className="btn btn-success"
                       onClick={() => handleBulkChamCong('LÀM', 1)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
+                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP'}
                     >
                       <i className="ri-check-line me-1"></i>
                       Tất cả LÀM - Ca Sáng
@@ -1057,7 +1057,7 @@ function ChamCong() {
                   </div>
                 </div>
               </div>
-              {(!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP') && (
+              {((!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG') || userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP') && (
                 <div className="alert alert-warning mb-0 mt-2">
                   <i className="ri-alert-line me-2"></i>
                   Vui lòng chọn khoa phòng để sử dụng tính năng chấm công hàng loạt

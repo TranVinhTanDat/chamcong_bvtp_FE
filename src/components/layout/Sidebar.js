@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 function Sidebar({ onToggle, isCollapsed }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [expandedMenus, setExpandedMenus] = useState({});
 
   const userRole = localStorage.getItem('role'); // Lấy role từ localStorage
 
@@ -43,12 +44,25 @@ function Sidebar({ onToggle, isCollapsed }) {
       },
     ] : []),
   ];
+
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('role');
     localStorage.removeItem('userId');
     navigate('/dang-nhap');
+  };
+
+  const toggleMenu = (index) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  // Check if any child is active
+  const hasActiveChild = (children) => {
+    return children && children.some(child => child.active);
   };
 
   return (
@@ -80,61 +94,119 @@ function Sidebar({ onToggle, isCollapsed }) {
       <nav className="mt-3">
         <ul className="nav flex-column">
           {menuItems.map((item, index) => (
-            <li key={index} className="nav-item">
+            <li key={index} className="nav-item mb-1">
               {item.children ? (
-                <div className="dropdown">
+                <div className="accordion-item border-0">
                   <button
-                    className="btn btn-link nav-link text-start w-100 d-flex align-items-center text-decoration-none"
+                    className={`btn btn-link nav-link text-start w-100 d-flex align-items-center text-decoration-none px-3 py-2 border-0 ${
+                      hasActiveChild(item.children) ? 'text-primary fw-semibold' : 'text-dark'
+                    }`}
                     type="button"
-                    data-bs-toggle="dropdown"
-                    style={{ color: '#6c757d' }}
+                    onClick={() => toggleMenu(index)}
+                    style={{
+                      borderRadius: '0.375rem',
+                      margin: '0 0.5rem',
+                      background: hasActiveChild(item.children) ? 'rgba(13, 110, 253, 0.1)' : 'transparent',
+                      transition: 'all 0.2s ease'
+                    }}
                   >
-                    <i className={item.icon} style={{ width: '20px' }}></i>
+                    <i className={item.icon} style={{ width: '20px', marginRight: '8px' }}></i>
                     {!isCollapsed && (
                       <>
                         <span className="flex-grow-1">{item.title}</span>
-                        <i className="ri-arrow-down-s-line"></i>
+                        <i 
+                          className={`ri-arrow-${expandedMenus[index] ? 'up' : 'down'}-s-line transition-transform`}
+                          style={{ 
+                            transition: 'transform 0.2s ease',
+                            transform: expandedMenus[index] ? 'rotate(180deg)' : 'rotate(0deg)'
+                          }}
+                        ></i>
                       </>
                     )}
                   </button>
-                  <ul className="dropdown-menu w-100 border-0 shadow-sm">
-                    {item.children.map((child, childIndex) => (
-                      <li key={childIndex}>
+                  
+                  {/* Submenu */}
+                  <div 
+                    className={`collapse ${expandedMenus[index] ? 'show' : ''}`}
+                    style={{ 
+                      transition: 'height 0.3s ease',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div className="px-3">
+                      {item.children.map((child, childIndex) => (
                         <Link
-                          className={`dropdown-item d-flex align-items-center py-2 ${child.active ? 'active bg-primary text-white' : ''
-                            }`}
+                          key={childIndex}
+                          className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none mb-1 ${
+                            child.active 
+                              ? 'active bg-primary text-white shadow-sm' 
+                              : 'text-muted hover-item'
+                          }`}
                           to={child.path}
+                          style={{
+                            borderRadius: '0.25rem',
+                            marginLeft: '1.5rem',
+                            fontSize: '0.9rem',
+                            transition: 'all 0.2s ease',
+                            position: 'relative'
+                          }}
                         >
-                          <i className="ri-arrow-right-s-line me-2"></i>
-                          {child.title}
+                          {/* Decorative element for sub-items */}
+                          <div 
+                            className={`sub-item-indicator ${child.active ? 'active' : ''}`}
+                            style={{
+                              position: 'absolute',
+                              left: '-12px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: '4px',
+                              height: '4px',
+                              backgroundColor: child.active ? '#fff' : '#6c757d',
+                              borderRadius: '50%',
+                              transition: 'all 0.2s ease'
+                            }}
+                          ></div>
+                          <span style={{ marginLeft: '4px' }}>{child.title}</span>
                         </Link>
-                      </li>
-                    ))}
-                  </ul>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <Link
-                  className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none ${item.active ? 'active bg-primary text-white' : 'text-dark'
-                    }`}
+                  className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none ${
+                    item.active ? 'active bg-primary text-white shadow-sm' : 'text-dark hover-item'
+                  }`}
                   to={item.path}
                   style={{
-                    borderRadius: item.active ? '0.375rem' : '0',
-                    margin: item.active ? '0 0.5rem' : '0',
+                    borderRadius: '0.375rem',
+                    margin: '0 0.5rem',
+                    transition: 'all 0.2s ease'
                   }}
                 >
-                  <i className={item.icon} style={{ width: '20px' }}></i>
+                  <i className={item.icon} style={{ width: '20px', marginRight: '8px' }}></i>
                   {!isCollapsed && <span>{item.title}</span>}
                 </Link>
               )}
             </li>
           ))}
+          
+          {/* Logout Button */}
           <li className="nav-item mt-auto">
             <button
-              className="nav-link d-flex align-items-center py-2 px-3 text-decoration-none text-danger"
+              className="nav-link d-flex align-items-center py-2 px-3 text-decoration-none text-danger hover-item"
               onClick={handleLogout}
-              style={{ borderRadius: '0.375rem', margin: '0 0.5rem', background: 'none', border: 'none', width: '100%', textAlign: 'left' }}
+              style={{ 
+                borderRadius: '0.375rem', 
+                margin: '0 0.5rem', 
+                background: 'none', 
+                border: 'none', 
+                width: 'calc(100% - 1rem)', 
+                textAlign: 'left',
+                transition: 'all 0.2s ease'
+              }}
             >
-              <i className="ri-logout-box-r-line me-2" style={{ width: '20px' }}></i>
+              <i className="ri-logout-box-r-line" style={{ width: '20px', marginRight: '8px' }}></i>
               {!isCollapsed && <span>Đăng xuất</span>}
             </button>
           </li>
@@ -142,15 +214,73 @@ function Sidebar({ onToggle, isCollapsed }) {
       </nav>
 
       {!isCollapsed && (
-        <div className="mt-auto p-3 border-top" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+        <div className="mt-auto p-3 border-top bg-light" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
           <div className="d-flex align-items-center">
             <div className="flex-grow-1">
-              <small className="text-muted d-block">Version 1.0.0</small>
+              <small className="text-muted d-block fw-medium">Version 1.0.0</small>
               <small className="text-muted">© 2024 Attendance System</small>
             </div>
           </div>
         </div>
       )}
+
+      {/* Custom Styles */}
+      <style jsx>{`
+        .hover-item {
+          transition: all 0.2s ease;
+        }
+        
+        .hover-item:hover {
+          background-color: rgba(13, 110, 253, 0.1) !important;
+          color: #0d6efd !important;
+          transform: translateX(2px);
+        }
+        
+        .nav-link.active {
+          box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+        }
+        
+        .sub-item-indicator.active {
+          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+        }
+        
+        .sidebar {
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .sidebar::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+        
+        .accordion-item .btn:focus {
+          box-shadow: none;
+        }
+        
+        .transition-transform {
+          transition: transform 0.2s ease;
+        }
+        
+        @media (max-width: 768px) {
+          .sidebar {
+            transform: translateX(${isCollapsed ? '-100%' : '0'});
+            width: 250px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
