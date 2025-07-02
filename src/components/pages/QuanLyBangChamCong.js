@@ -424,7 +424,7 @@ function QuanLyBangChamCong() {
       }, 500);
 
     } catch (error) {
-      // console.error('❌ Lỗi khi cập nhật chấm công:', error);
+      console.error('❌ Lỗi khi cập nhật chấm công:', error);
 
       // *** XFIX: Xử lý lỗi chi tiết hơn ***
       let errorMessage = 'Lỗi khi cập nhật chấm công';
@@ -477,7 +477,7 @@ function QuanLyBangChamCong() {
       }
       // *** KHI TRẠNG THÁI LÀM: Không gửi maKyHieuChamCong và ghiChu ***
 
-      console.log('📤 Update payload:', updatePayload);
+      // console.log('📤 Update payload:', updatePayload);
 
       // Bước 3: Cập nhật qua API /{id}/trangthai
       const response = await axiosInstance.put(`/chamcong/${attendanceRecord.id}/trangthai`, updatePayload);
@@ -517,7 +517,7 @@ function QuanLyBangChamCong() {
 
       return null;
     } catch (error) {
-      // console.error('Lỗi khi tìm bản ghi chấm công:', error);
+      console.error('Lỗi khi tìm bản ghi chấm công:', error);
       return null;
     }
   };
@@ -1545,7 +1545,7 @@ function QuanLyBangChamCong() {
       const totalRowStyle = {
         font: { name: 'Times New Roman', size: 11, bold: true },
         alignment: { horizontal: 'center', vertical: 'middle' },
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EEEEEE' } },
         border: {
           top: { style: 'medium' }, bottom: { style: 'medium' },
           left: { style: 'thin' }, right: { style: 'thin' }
@@ -1748,7 +1748,7 @@ function QuanLyBangChamCong() {
       signatureStartRow += 4;
 
       // *** CHÚ THÍCH KÝ HIỆU (CHUYỂN XUỐNG SAU CHỮ KÝ) ***
-      let legendStartRow = signatureStartRow;
+      let legendStartRow = signatureStartRow + 2;
 
       worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
       worksheet.mergeCells(legendStartRow, 1, legendStartRow, totalCols);
@@ -2786,7 +2786,7 @@ function QuanLyBangChamCong() {
         const totalRowStyle = {
           font: { name: 'Times New Roman', size: 11, bold: true },
           alignment: { horizontal: 'center', vertical: 'middle' },
-          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EEEEEE' } },
           border: {
             top: { style: 'medium' }, bottom: { style: 'medium' },
             left: { style: 'thin' }, right: { style: 'thin' }
@@ -2983,7 +2983,7 @@ function QuanLyBangChamCong() {
         signatureStartRow += 4;
 
         // 8. CHÚ THÍCH KÝ HIỆU (CHUYỂN XUỐNG SAU CHỮ KÝ)
-        let legendStartRow = signatureStartRow;
+        let legendStartRow = signatureStartRow + 2;
 
         worksheet.getCell(legendStartRow, 1).value = 'CHÚ THÍCH KÝ HIỆU:';
         worksheet.mergeCells(legendStartRow, 1, legendStartRow, totalCols);
@@ -3544,13 +3544,37 @@ function QuanLyBangChamCong() {
                   <tbody>
                     {(() => {
                       const summaryData = calculateSummaryData();
-                      return filteredEmployees.map((nv, index) => {
+
+                      // Tính tổng cho tất cả các cột
+                      let totalWorkDaysA = 0;
+                      let totalWeekendDaysB = 0;
+                      let totalPhepDaysC = 0;
+                      let totalBhxhDaysD = 0;
+                      let totalHocHoiDaysE = 0;
+                      let totalKhacDaysF = 0;
+                      let totalTongSoNgayLamAB = 0;
+                      let totalTongSoNgayNghiCDEF = 0;
+                      let totalTongCong = 0;
+
+                      summaryData.forEach(nv => {
+                        totalWorkDaysA += parseFloat(nv.workDaysA || 0);
+                        totalWeekendDaysB += parseFloat(nv.weekendDaysB || 0);
+                        totalPhepDaysC += parseFloat(nv.phepDaysC || 0);
+                        totalBhxhDaysD += parseFloat(nv.bhxhDaysD || 0);
+                        totalHocHoiDaysE += parseFloat(nv.hocHoiDaysE || 0);
+                        totalKhacDaysF += parseFloat(nv.khacDaysF || 0);
+                        totalTongSoNgayLamAB += parseFloat(nv.tongSoNgayLamAB || 0);
+                        totalTongSoNgayNghiCDEF += parseFloat(nv.tongSoNgayNghiCDEF || 0);
+                        totalTongCong += parseFloat(nv.tongCong || 0);
+                      });
+
+                      const employeeRows = filteredEmployees.map((nv, index) => {
                         const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
                         const summaryItem = summaryData.find(item => item.id === nv.id);
 
                         return (
-                          <>
-                            <tr key={nv.id} className="border-bottom">
+                          <React.Fragment key={nv.id}>
+                            <tr className="border-bottom">
                               <td rowSpan="2" className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
                                 {index + 1}
                               </td>
@@ -3633,8 +3657,6 @@ function QuanLyBangChamCong() {
                               <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff9e6' }}>
                                 {summaryItem?.tongCong === '0.0' ? '-' : summaryItem?.tongCong || '-'}
                               </td>
-
-
                               <td rowSpan="2" className="align-middle py-2" style={{
                                 fontSize: '11px',
                                 whiteSpace: 'pre-line',
@@ -3646,7 +3668,7 @@ function QuanLyBangChamCong() {
                                 {summaryItem?.note || ''}
                               </td>
                             </tr>
-                            <tr key={`${nv.id}_2`} className="border-bottom">
+                            <tr className="border-bottom">
                               {Array.from({ length: daysInMonth }, (_, day) => {
                                 const shift2Symbol = employeeData[2][day + 1] || '-';
                                 const isWeekendDay = isWeekend(day + 1);
@@ -3686,9 +3708,118 @@ function QuanLyBangChamCong() {
                                 );
                               })}
                             </tr>
-                          </>
+                          </React.Fragment>
                         );
                       });
+
+                      // *** THÊM DÒNG TỔNG CỘNG ***
+                      const totalRow = (
+                        <tr key="total-row" style={{
+                          backgroundColor: '#f8f9fa',
+                          borderTop: '3px solid #6c7ae0',
+                          fontWeight: 'bold'
+                        }}>
+                          {/* Merge các cột đầu */}
+                          <td
+                            colSpan={5 + daysInMonth}
+                            className="text-center align-middle py-3"
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: 'bold',
+                              backgroundColor: '#e9ecef',
+                              color: '#495057',
+                              borderRight: '2px solid #6c7ae0'
+                            }}
+                          >
+                            TỔNG CỘNG
+                          </td>
+
+                          {/* Các cột tổng */}
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#e6f3ff',
+                            color: '#0056b3'
+                          }}>
+                            {totalWorkDaysA.toFixed(1) === '0.0' ? '-' : totalWorkDaysA.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#ffe6e6',
+                            color: '#dc3545'
+                          }}>
+                            {totalWeekendDaysB.toFixed(1) === '0.0' ? '-' : totalWeekendDaysB.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#e6ffe6',
+                            color: '#28a745'
+                          }}>
+                            {totalPhepDaysC.toFixed(1) === '0.0' ? '-' : totalPhepDaysC.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#e6f0ff',
+                            color: '#007bff'
+                          }}>
+                            {totalBhxhDaysD.toFixed(1) === '0.0' ? '-' : totalBhxhDaysD.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#fff3e6',
+                            color: '#fd7e14'
+                          }}>
+                            {totalHocHoiDaysE.toFixed(1) === '0.0' ? '-' : totalHocHoiDaysE.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#f0f0f0',
+                            color: '#6c757d'
+                          }}>
+                            {totalKhacDaysF.toFixed(1) === '0.0' ? '-' : totalKhacDaysF.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#d9f2e6',
+                            color: '#155724'
+                          }}>
+                            {totalTongSoNgayLamAB.toFixed(1) === '0.0' ? '-' : totalTongSoNgayLamAB.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#ffe6e6',
+                            color: '#721c24'
+                          }}>
+                            {totalTongSoNgayNghiCDEF.toFixed(1) === '0.0' ? '-' : totalTongSoNgayNghiCDEF.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            backgroundColor: '#fff9e6',
+                            color: '#856404',
+                            borderLeft: '2px solid #ffc107'
+                          }}>
+                            {totalTongCong.toFixed(1) === '0.0' ? '-' : totalTongCong.toFixed(1)}
+                          </td>
+                          <td className="text-center align-middle py-3" style={{
+                            fontSize: '12px',
+                            backgroundColor: '#f8f9fa',
+                            color: '#6c757d',
+                            fontStyle: 'italic'
+                          }}>
+                            Tổng cộng toàn bộ
+                          </td>
+                        </tr>
+                      );
+
+                      return [...employeeRows, totalRow];
                     })()}
                   </tbody>
                 </table>

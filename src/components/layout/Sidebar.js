@@ -74,7 +74,7 @@ function Sidebar({ onToggle, isCollapsed }) {
         position: 'fixed',
         left: 0,
         top: 0,
-        zIndex: 1030,
+        zIndex: 1040,
         transition: 'width 0.3s ease',
         overflowY: 'auto',
       }}
