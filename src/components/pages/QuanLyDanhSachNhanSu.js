@@ -137,9 +137,14 @@ function QuanLyDanhSachNhanSu() {
       ? currentNhanVien.soDienThoai.trim()
       : null;
 
+    // *** THAY ĐỔI: Email có thể null ***
+    const processedEmail = currentNhanVien.email && currentNhanVien.email.trim()
+      ? currentNhanVien.email.trim()
+      : null;
+
     return {
       hoTen: currentNhanVien.hoTen.trim(),
-      email: currentNhanVien.email.trim(),
+      email: processedEmail, // Thay đổi từ currentNhanVien.email.trim() thành processedEmail
       maNV: processedMaNV,
       ngayThangNamSinh: formattedNgaySinh,
       soDienThoai: processedSDT,
@@ -154,19 +159,18 @@ function QuanLyDanhSachNhanSu() {
       return false;
     }
 
-    if (!currentNhanVien.email || !currentNhanVien.email.trim()) {
-      toast.error('Vui lòng nhập email');
-      return false;
+    // *** THAY ĐỔI: Email không còn bắt buộc ***
+    // Nếu có email thì phải hợp lệ, nhưng không bắt buộc phải có
+    if (currentNhanVien.email && currentNhanVien.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(currentNhanVien.email.trim())) {
+        toast.error('Email không hợp lệ');
+        return false;
+      }
     }
 
     if (!currentNhanVien.khoaPhong.id) {
       toast.error('Vui lòng chọn khoa/phòng');
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(currentNhanVien.email.trim())) {
-      toast.error('Email không hợp lệ');
       return false;
     }
 
@@ -442,7 +446,13 @@ function QuanLyDanhSachNhanSu() {
                     <tr key={nv.id} className="border-bottom">
                       <td className="text-center align-middle py-3">{page * size + index + 1}</td>
                       <td className="align-middle py-3 fw-semibold">{nv.hoTen}</td>
-                      <td className="align-middle py-3">{nv.email}</td>
+                      <td className="align-middle py-3">
+                        {nv.email ? (
+                          <span className="text-primary">{nv.email}</span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
                       <td className="align-middle py-3">
                         {nv.maNV ? (
                           <span className="badge bg-primary" style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
@@ -575,17 +585,20 @@ function QuanLyDanhSachNhanSu() {
               <div className="col-md-6">
                 <Form.Group className="mb-3">
                   <Form.Label className="fw-semibold">
-                    Email <span className="text-danger">*</span>
+                    Email <small className="text-muted">(tùy chọn)</small>
                   </Form.Label>
                   <Form.Control
                     type="email"
                     name="email"
                     value={currentNhanVien.email}
                     onChange={handleChange}
-                    placeholder="Nhập email"
+                    placeholder="Nhập email (không bắt buộc)"
                     disabled={isLoading}
-                    required
                   />
+                  <Form.Text className="text-muted">
+                    <i className="ri-mail-line me-1"></i>
+                    Email không bắt buộc nhưng nếu nhập phải đúng định dạng
+                  </Form.Text>
                 </Form.Group>
               </div>
             </div>
@@ -644,7 +657,7 @@ function QuanLyDanhSachNhanSu() {
                   />
                 </Form.Group>
               </div>
-{/* // *** THAY THẾ ĐOẠN CODE TRONG MODAL (khoảng dòng 400-420) */}
+              {/* // *** THAY THẾ ĐOẠN CODE TRONG MODAL (khoảng dòng 400-420) */}
 
               <div className="col-md-6">
                 <Form.Group className="mb-3">

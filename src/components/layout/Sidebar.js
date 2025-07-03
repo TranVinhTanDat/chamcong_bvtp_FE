@@ -21,7 +21,10 @@ function Sidebar({ onToggle, isCollapsed }) {
       children: [
         { title: 'Chấm công', path: '/cham-cong', active: location.pathname === '/cham-cong' },
         { title: 'Quản lý bảng chấm công', path: '/quan-ly-bang-cham-cong', active: location.pathname === '/quan-ly-bang-cham-cong' },
-        { title: 'Danh sách nhân sự', path: '/quan-ly-danh-sach-nhan-su', active: location.pathname === '/quan-ly-danh-sach-nhan-su' },
+        // Chỉ hiển thị "Danh sách nhân sự" cho ADMIN, NGUOICHAMCONG
+        ...(userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP' ? [
+          { title: 'Danh sách nhân sự', path: '/quan-ly-danh-sach-nhan-su', active: location.pathname === '/quan-ly-danh-sach-nhan-su' }
+        ] : []),
       ],
     },
     ...(userRole === 'ADMIN' ? [ // Chỉ hiển thị "Quản trị" và "Báo cáo" nếu role là ADMIN
@@ -98,9 +101,8 @@ function Sidebar({ onToggle, isCollapsed }) {
               {item.children ? (
                 <div className="accordion-item border-0">
                   <button
-                    className={`btn btn-link nav-link text-start w-100 d-flex align-items-center text-decoration-none px-3 py-2 border-0 ${
-                      hasActiveChild(item.children) ? 'text-primary fw-semibold' : 'text-dark'
-                    }`}
+                    className={`btn btn-link nav-link text-start w-100 d-flex align-items-center text-decoration-none px-3 py-2 border-0 ${hasActiveChild(item.children) ? 'text-primary fw-semibold' : 'text-dark'
+                      }`}
                     type="button"
                     onClick={() => toggleMenu(index)}
                     style={{
@@ -114,9 +116,9 @@ function Sidebar({ onToggle, isCollapsed }) {
                     {!isCollapsed && (
                       <>
                         <span className="flex-grow-1">{item.title}</span>
-                        <i 
+                        <i
                           className={`ri-arrow-${expandedMenus[index] ? 'up' : 'down'}-s-line transition-transform`}
-                          style={{ 
+                          style={{
                             transition: 'transform 0.2s ease',
                             transform: expandedMenus[index] ? 'rotate(180deg)' : 'rotate(0deg)'
                           }}
@@ -124,11 +126,11 @@ function Sidebar({ onToggle, isCollapsed }) {
                       </>
                     )}
                   </button>
-                  
+
                   {/* Submenu */}
-                  <div 
+                  <div
                     className={`collapse ${expandedMenus[index] ? 'show' : ''}`}
-                    style={{ 
+                    style={{
                       transition: 'height 0.3s ease',
                       overflow: 'hidden'
                     }}
@@ -137,11 +139,10 @@ function Sidebar({ onToggle, isCollapsed }) {
                       {item.children.map((child, childIndex) => (
                         <Link
                           key={childIndex}
-                          className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none mb-1 ${
-                            child.active 
-                              ? 'active bg-primary text-white shadow-sm' 
+                          className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none mb-1 ${child.active
+                              ? 'active bg-primary text-white shadow-sm'
                               : 'text-muted hover-item'
-                          }`}
+                            }`}
                           to={child.path}
                           style={{
                             borderRadius: '0.25rem',
@@ -152,7 +153,7 @@ function Sidebar({ onToggle, isCollapsed }) {
                           }}
                         >
                           {/* Decorative element for sub-items */}
-                          <div 
+                          <div
                             className={`sub-item-indicator ${child.active ? 'active' : ''}`}
                             style={{
                               position: 'absolute',
@@ -174,9 +175,8 @@ function Sidebar({ onToggle, isCollapsed }) {
                 </div>
               ) : (
                 <Link
-                  className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none ${
-                    item.active ? 'active bg-primary text-white shadow-sm' : 'text-dark hover-item'
-                  }`}
+                  className={`nav-link d-flex align-items-center py-2 px-3 text-decoration-none ${item.active ? 'active bg-primary text-white shadow-sm' : 'text-dark hover-item'
+                    }`}
                   to={item.path}
                   style={{
                     borderRadius: '0.375rem',
@@ -190,18 +190,18 @@ function Sidebar({ onToggle, isCollapsed }) {
               )}
             </li>
           ))}
-          
+
           {/* Logout Button */}
           <li className="nav-item mt-auto">
             <button
               className="nav-link d-flex align-items-center py-2 px-3 text-decoration-none text-danger hover-item"
               onClick={handleLogout}
-              style={{ 
-                borderRadius: '0.375rem', 
-                margin: '0 0.5rem', 
-                background: 'none', 
-                border: 'none', 
-                width: 'calc(100% - 1rem)', 
+              style={{
+                borderRadius: '0.375rem',
+                margin: '0 0.5rem',
+                background: 'none',
+                border: 'none',
+                width: 'calc(100% - 1rem)',
                 textAlign: 'left',
                 transition: 'all 0.2s ease'
               }}
@@ -217,8 +217,8 @@ function Sidebar({ onToggle, isCollapsed }) {
         <div className="mt-auto p-3 border-top bg-light" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
           <div className="d-flex align-items-center">
             <div className="flex-grow-1">
-              <small className="text-muted d-block fw-medium">Version 1.0.0</small>
-              <small className="text-muted">© 2024 Attendance System</small>
+              <small className="text-muted d-block fw-medium">Phiên bản 1.0.0</small>
+              <small className="text-muted">03/07/2025</small>
             </div>
           </div>
         </div>
