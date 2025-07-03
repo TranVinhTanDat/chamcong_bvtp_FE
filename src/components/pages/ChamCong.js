@@ -116,6 +116,8 @@ function ChamCong() {
       return;
     }
 
+    
+
     setBulkUpdateLoading(true);
 
     try {
