@@ -29,7 +29,7 @@ function Home() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
+
       // Parallel fetch các dữ liệu cần thiết
       const promises = [
         fetchStatistics(),
@@ -67,13 +67,13 @@ function Home() {
 
       // 1. Lấy tổng số nhân viên
       const employeesResponse = await axiosInstance.get('/nhanvien', {
-        params: { 
-          page: 0, 
+        params: {
+          page: 0,
           size: 1000,
           khoaPhongId: khoaPhongId || undefined
         }
       });
-      
+
       const totalEmployees = employeesResponse.data.totalElements || 0;
 
       // 2. Lấy dữ liệu chấm công hôm nay
@@ -90,14 +90,14 @@ function Home() {
 
       // Xử lý dữ liệu chấm công hôm nay
       const attendanceData = attendanceResponse.data.content || [];
-      
+
       // Nhóm theo nhân viên để tránh đếm trùng
       const employeeAttendance = {};
-      
+
       attendanceData.forEach(record => {
         if (record.nhanVien && record.nhanVien.id) {
           const employeeId = record.nhanVien.id;
-          
+
           if (!employeeAttendance[employeeId]) {
             employeeAttendance[employeeId] = {
               employee: record.nhanVien,
@@ -128,14 +128,14 @@ function Home() {
       // Tính tỷ lệ đúng giờ (giả sử 8:00 AM là giờ chuẩn)
       const onTimeEmployees = employeeAttendanceArray.filter(emp => {
         if (!emp.checkInTime || !emp.hasWorked) return false;
-        
+
         const checkInTime = emp.checkInTime.split(' ')[1]; // Lấy phần giờ
         if (!checkInTime) return false;
-        
+
         const [hours, minutes] = checkInTime.split(':').map(Number);
         const checkInMinutes = hours * 60 + minutes;
         const standardTime = 8 * 60; // 8:00 AM
-        
+
         return checkInMinutes <= standardTime + 15; // Cho phép trễ 15 phút
       }).length;
 
@@ -171,11 +171,11 @@ function Home() {
 
       // Lấy dữ liệu chấm công trong 2 ngày gần nhất
       const promises = [];
-      
+
       for (let i = 0; i < 2; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
-        
+
         promises.push(
           axiosInstance.get('/chamcong/lichsu', {
             params: {
@@ -211,8 +211,8 @@ function Home() {
           type: activity.trangThaiChamCong?.tenTrangThai === 'LÀM' ? 'checkin' : 'absent',
           employeeName: activity.nhanVien?.hoTen || 'Không xác định',
           time: formatActivityTime(activity.thoiGianCheckIn),
-          description: activity.trangThaiChamCong?.tenTrangThai === 'LÀM' 
-            ? `đã chấm công vào` 
+          description: activity.trangThaiChamCong?.tenTrangThai === 'LÀM'
+            ? `đã chấm công vào`
             : `nghỉ ${activity.kyHieuChamCong?.tenKyHieu || 'không xác định'}`,
           icon: activity.trangThaiChamCong?.tenTrangThai === 'LÀM' ? 'ri-user-check-line' : 'ri-user-unfollow-line',
           color: activity.trangThaiChamCong?.tenTrangThai === 'LÀM' ? 'success' : 'danger'
@@ -227,11 +227,11 @@ function Home() {
 
   const parseDateTime = (dateTimeStr) => {
     if (!dateTimeStr) return new Date();
-    
+
     const [datePart, timePart] = dateTimeStr.split(' ');
     const [day, month, year] = datePart.split('-');
     const [hours, minutes, seconds] = timePart.split(':');
-    
+
     return new Date(year, month - 1, day, hours, minutes, seconds);
   };
 
@@ -339,9 +339,9 @@ function Home() {
               <div className="col-md-4 text-md-end">
                 <div className="d-inline-flex align-items-center bg-white bg-opacity-20 rounded-pill px-3 py-2">
                   <i className="ri-time-line me-2"></i>
-                  <span className="fw-medium" style={{color:'red'}}>
-                    {todayDate.toLocaleTimeString('vi-VN', { 
-                      hour: '2-digit', 
+                  <span className="fw-medium" style={{ color: 'red' }}>
+                    {todayDate.toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
                       minute: '2-digit',
                     })}
                   </span>
@@ -385,12 +385,12 @@ function Home() {
                   <h3 className="mb-0 text-success fw-bold">{statistics.presentToday}</h3>
                 </div>
                 <div className="bg-success bg-opacity-10 p-3 rounded-circle">
-                  <i className="ri-user-check-line text-success fs-4"></i>
+                  <i className="ri-user-3-line text-success fs-4"></i>
                 </div>
               </div>
               <div className="mt-2">
                 <small className="text-success">
-                  <i className="ri-arrow-up-line"></i> 
+                  <i className="ri-arrow-up-line"></i>
                   {statistics.attendanceRate}% tỷ lệ có mặt
                 </small>
               </div>
@@ -451,7 +451,7 @@ function Home() {
                   <i className="ri-history-line me-2 text-primary"></i>
                   Hoạt động gần đây
                 </h5>
-                <button 
+                <button
                   className="btn btn-outline-primary btn-sm"
                   onClick={() => navigate('/quan-ly-bang-cham-cong')}
                 >

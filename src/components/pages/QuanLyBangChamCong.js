@@ -3569,148 +3569,276 @@ function QuanLyBangChamCong() {
                       });
 
                       const employeeRows = filteredEmployees.map((nv, index) => {
-                        const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
-                        const summaryItem = summaryData.find(item => item.id === nv.id);
+  const employeeData = chamCongData[nv.id] || { 1: {}, 2: {} };
+  const summaryItem = summaryData.find(item => item.id === nv.id);
 
-                        return (
-                          <React.Fragment key={nv.id}>
-                            <tr className="border-bottom">
-                              <td rowSpan="2" className="text-center align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
-                                {index + 1}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
-                                {nv.maNV || '-'}
-                              </td>
-                              <td rowSpan="2" className="align-middle py-2 fw-semibold" style={{ fontSize: '12px', backgroundColor: '#f8f9fa' }}>
-                                {nv.hoTen}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
-                                {nv.ngayThangNamSinh || 'N/A'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '11px', backgroundColor: '#f8f9fa' }}>
-                                {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
-                              </td>
+  // *** THÊM LOGIC HOVER CHO CẢ 2 DÒNG VÀ CÁC Ô ROWSPAN ***
+  const handleRowHover = (isEnter) => {
+    const row1 = document.querySelector(`[data-employee-id="${nv.id}"][data-shift="1"]`);
+    const row2 = document.querySelector(`[data-employee-id="${nv.id}"][data-shift="2"]`);
+    
+    if (row1 && row2) {
+      // Màu nền mặc định dựa trên index
+      const defaultBgColor = index % 2 === 0 ? '#fafbfc' : '#ffffff';
+      const hoverBgColor = '#f0f4ff';
+      
+      if (isEnter) {
+        // Hover effect cho toàn bộ dòng
+        row1.style.backgroundColor = hoverBgColor;
+        row2.style.backgroundColor = hoverBgColor;
+        row1.style.borderLeft = '3px solid #6c7ae0';
+        row2.style.borderLeft = '3px solid #6c7ae0';
+        row1.style.transform = 'translateY(-1px)';
+        row2.style.transform = 'translateY(-1px)';
+        row1.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+        row2.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+        
+        // Thay đổi màu nền các ô rowSpan (STT, Mã NV, Họ tên, v.v.)
+        const rowSpanCells = row1.querySelectorAll('td[rowspan="2"]');
+        rowSpanCells.forEach(cell => {
+          cell.style.backgroundColor = hoverBgColor;
+        });
+      } else {
+        // Reset về trạng thái ban đầu
+        row1.style.backgroundColor = defaultBgColor;
+        row2.style.backgroundColor = defaultBgColor;
+        row1.style.borderLeft = '3px solid transparent';
+        row2.style.borderLeft = '3px solid transparent';
+        row1.style.transform = 'translateY(0)';
+        row2.style.transform = 'translateY(0)';
+        row1.style.boxShadow = 'none';
+        row2.style.boxShadow = 'none';
+        
+        // Reset màu nền các ô rowSpan về màu ban đầu
+        const rowSpanCells = row1.querySelectorAll('td[rowspan="2"]');
+        rowSpanCells.forEach(cell => {
+          cell.style.backgroundColor = '#f8f9fa'; // Màu gốc của các ô rowSpan
+        });
+      }
+    }
+  };
 
-                              {Array.from({ length: daysInMonth }, (_, day) => {
-                                const shift1Symbol = employeeData[1][day + 1] || '-';
-                                const isWeekendDay = isWeekend(day + 1);
-                                return (
-                                  <td
-                                    key={day + 1}
-                                    className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
-                                    style={{
-                                      ...getCellStyle(shift1Symbol),
-                                      backgroundColor: isWeekendDay && shift1Symbol === '-' ? '#ffe6e6' : getCellStyle(shift1Symbol).backgroundColor,
-                                      minWidth: '30px',
-                                      fontSize: '10px',
-                                      fontWeight: 'bold',
-                                      cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
-                                      position: 'relative'
-                                    }}
-                                    onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 1, shift1Symbol)}
-                                    title={userRole === 'ADMIN' ? 'Click để sửa ca sáng' : ''}
-                                  >
-                                    {shift1Symbol}
-                                    {userRole === 'ADMIN' && (
-                                      <div
-                                        className="edit-indicator"
-                                        style={{
-                                          position: 'absolute',
-                                          top: '1px',
-                                          right: '1px',
-                                          width: '4px',
-                                          height: '4px',
-                                          backgroundColor: '#007bff',
-                                          borderRadius: '50%',
-                                          opacity: 0.7
-                                        }}
-                                      />
-                                    )}
-                                  </td>
-                                );
-                              })}
+  return (
+    <React.Fragment key={nv.id}>
+      {/* DÒNG CA 1 */}
+      <tr 
+        className="border-bottom"
+        data-employee-id={nv.id}
+        data-shift="1"
+        style={{
+          backgroundColor: index % 2 === 0 ? '#fafbfc' : '#ffffff',
+          transition: 'all 0.2s ease',
+          borderLeft: '3px solid transparent'
+        }}
+        onMouseEnter={() => handleRowHover(true)}
+        onMouseLeave={() => handleRowHover(false)}
+      >
+        <td rowSpan="2" className="text-center align-middle py-2 fw-semibold" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#f8f9fa',
+          transition: 'all 0.2s ease' // Thêm transition cho smooth effect
+        }}>
+          {index + 1}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '11px', 
+          backgroundColor: '#f8f9fa',
+          transition: 'all 0.2s ease'
+        }}>
+          {nv.maNV || '-'}
+        </td>
+        <td rowSpan="2" className="align-middle py-2 fw-semibold" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#f8f9fa',
+          transition: 'all 0.2s ease'
+        }}>
+          {nv.hoTen}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '11px', 
+          backgroundColor: '#f8f9fa',
+          transition: 'all 0.2s ease'
+        }}>
+          {nv.ngayThangNamSinh || 'N/A'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '11px', 
+          backgroundColor: '#f8f9fa',
+          transition: 'all 0.2s ease'
+        }}>
+          {nv.khoaPhong?.tenKhoaPhong || 'N/A'}
+        </td>
 
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f3ff' }}>
-                                {summaryItem?.workDaysA === '0.0' ? '-' : summaryItem?.workDaysA || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#ffe6e6' }}>
-                                {summaryItem?.weekendDaysB === '0.0' ? '-' : summaryItem?.weekendDaysB || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6ffe6' }}>
-                                {summaryItem?.phepDaysC === '0.0' ? '-' : summaryItem?.phepDaysC || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#e6f0ff' }}>
-                                {summaryItem?.bhxhDaysD === '0.0' ? '-' : summaryItem?.bhxhDaysD || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff3e6' }}>
-                                {summaryItem?.hocHoiDaysE === '0.0' ? '-' : summaryItem?.hocHoiDaysE || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#f0f0f0' }}>
-                                {summaryItem?.khacDaysF === '0.0' ? '-' : summaryItem?.khacDaysF || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#d9f2e6' }}>
-                                {summaryItem?.tongSoNgayLamAB === '0.0' ? '-' : summaryItem?.tongSoNgayLamAB || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#ffe6e6' }}>
-                                {summaryItem?.tongSoNgayNghiCDEF === '0.0' ? '-' : summaryItem?.tongSoNgayNghiCDEF || '-'}
-                              </td>
-                              <td rowSpan="2" className="text-center align-middle py-2" style={{ fontSize: '12px', backgroundColor: '#fff9e6' }}>
-                                {summaryItem?.tongCong === '0.0' ? '-' : summaryItem?.tongCong || '-'}
-                              </td>
-                              <td rowSpan="2" className="align-middle py-2" style={{
-                                fontSize: '11px',
-                                whiteSpace: 'pre-line',
-                                lineHeight: '1.4',
-                                verticalAlign: 'top',
-                                maxWidth: '150px',
-                                backgroundColor: '#f8f9fa'
-                              }}>
-                                {summaryItem?.note || ''}
-                              </td>
-                            </tr>
-                            <tr className="border-bottom">
-                              {Array.from({ length: daysInMonth }, (_, day) => {
-                                const shift2Symbol = employeeData[2][day + 1] || '-';
-                                const isWeekendDay = isWeekend(day + 1);
-                                return (
-                                  <td
-                                    key={day + 1}
-                                    className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
-                                    style={{
-                                      ...getCellStyle(shift2Symbol),
-                                      backgroundColor: isWeekendDay && shift2Symbol === '-' ? '#ffe6e6' : getCellStyle(shift2Symbol).backgroundColor,
-                                      minWidth: '30px',
-                                      fontSize: '10px',
-                                      fontWeight: 'bold',
-                                      cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
-                                      position: 'relative'
-                                    }}
-                                    onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 2, shift2Symbol)}
-                                    title={userRole === 'ADMIN' ? 'Click để sửa ca chiều' : ''}
-                                  >
-                                    {shift2Symbol}
-                                    {userRole === 'ADMIN' && (
-                                      <div
-                                        className="edit-indicator"
-                                        style={{
-                                          position: 'absolute',
-                                          top: '1px',
-                                          right: '1px',
-                                          width: '4px',
-                                          height: '4px',
-                                          backgroundColor: '#007bff',
-                                          borderRadius: '50%',
-                                          opacity: 0.7
-                                        }}
-                                      />
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          </React.Fragment>
-                        );
-                      });
+        {Array.from({ length: daysInMonth }, (_, day) => {
+          const shift1Symbol = employeeData[1][day + 1] || '-';
+          const isWeekendDay = isWeekend(day + 1);
+          return (
+            <td
+              key={day + 1}
+              className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
+              style={{
+                ...getCellStyle(shift1Symbol),
+                backgroundColor: isWeekendDay && shift1Symbol === '-' ? '#ffe6e6' : getCellStyle(shift1Symbol).backgroundColor,
+                minWidth: '30px',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
+                position: 'relative'
+              }}
+              onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 1, shift1Symbol)}
+              title={userRole === 'ADMIN' ? 'Click để sửa ca sáng' : ''}
+            >
+              {shift1Symbol}
+              {userRole === 'ADMIN' && (
+                <div
+                  className="edit-indicator"
+                  style={{
+                    position: 'absolute',
+                    top: '1px',
+                    right: '1px',
+                    width: '4px',
+                    height: '4px',
+                    backgroundColor: '#007bff',
+                    borderRadius: '50%',
+                    opacity: 0.7
+                  }}
+                />
+              )}
+            </td>
+          );
+        })}
+
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#e6f3ff',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.workDaysA === '0.0' ? '-' : summaryItem?.workDaysA || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#ffe6e6',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.weekendDaysB === '0.0' ? '-' : summaryItem?.weekendDaysB || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#e6ffe6',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.phepDaysC === '0.0' ? '-' : summaryItem?.phepDaysC || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#e6f0ff',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.bhxhDaysD === '0.0' ? '-' : summaryItem?.bhxhDaysD || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#fff3e6',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.hocHoiDaysE === '0.0' ? '-' : summaryItem?.hocHoiDaysE || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#f0f0f0',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.khacDaysF === '0.0' ? '-' : summaryItem?.khacDaysF || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#d9f2e6',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.tongSoNgayLamAB === '0.0' ? '-' : summaryItem?.tongSoNgayLamAB || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#ffe6e6',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.tongSoNgayNghiCDEF === '0.0' ? '-' : summaryItem?.tongSoNgayNghiCDEF || '-'}
+        </td>
+        <td rowSpan="2" className="text-center align-middle py-2" style={{ 
+          fontSize: '12px', 
+          backgroundColor: '#fff9e6',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.tongCong === '0.0' ? '-' : summaryItem?.tongCong || '-'}
+        </td>
+        <td rowSpan="2" className="align-middle py-2" style={{
+          fontSize: '11px',
+          whiteSpace: 'pre-line',
+          lineHeight: '1.4',
+          verticalAlign: 'top',
+          maxWidth: '150px',
+          backgroundColor: '#f8f9fa',
+          transition: 'all 0.2s ease'
+        }}>
+          {summaryItem?.note || ''}
+        </td>
+      </tr>
+      
+      {/* DÒNG CA 2 */}
+      <tr 
+        className="border-bottom"
+        data-employee-id={nv.id}
+        data-shift="2"
+        style={{
+          backgroundColor: index % 2 === 0 ? '#fafbfc' : '#ffffff',
+          transition: 'all 0.2s ease',
+          borderLeft: '3px solid transparent'
+        }}
+        onMouseEnter={() => handleRowHover(true)}
+        onMouseLeave={() => handleRowHover(false)}
+      >
+        {Array.from({ length: daysInMonth }, (_, day) => {
+          const shift2Symbol = employeeData[2][day + 1] || '-';
+          const isWeekendDay = isWeekend(day + 1);
+          return (
+            <td
+              key={day + 1}
+              className={`text-center align-middle p-1 ${userRole === 'ADMIN' ? 'attendance-cell-editable' : ''}`}
+              style={{
+                ...getCellStyle(shift2Symbol),
+                backgroundColor: isWeekendDay && shift2Symbol === '-' ? '#ffe6e6' : getCellStyle(shift2Symbol).backgroundColor,
+                minWidth: '30px',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                cursor: userRole === 'ADMIN' ? 'pointer' : 'default',
+                position: 'relative'
+              }}
+              onClick={() => userRole === 'ADMIN' && handleCellClick(nv.id, day + 1, 2, shift2Symbol)}
+              title={userRole === 'ADMIN' ? 'Click để sửa ca chiều' : ''}
+            >
+              {shift2Symbol}
+              {userRole === 'ADMIN' && (
+                <div
+                  className="edit-indicator"
+                  style={{
+                    position: 'absolute',
+                    top: '1px',
+                    right: '1px',
+                    width: '4px',
+                    height: '4px',
+                    backgroundColor: '#007bff',
+                    borderRadius: '50%',
+                    opacity: 0.7
+                  }}
+                />
+              )}
+            </td>
+          );
+        })}
+      </tr>
+    </React.Fragment>
+  );
+});
 
                       // *** THÊM DÒNG TỔNG CỘNG ***
                       const totalRow = (
