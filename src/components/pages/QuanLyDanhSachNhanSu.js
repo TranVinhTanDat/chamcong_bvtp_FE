@@ -600,6 +600,7 @@ function QuanLyDanhSachNhanSu() {
                     Email không bắt buộc nhưng nếu nhập phải đúng định dạng
                   </Form.Text>
                 </Form.Group>
+                
               </div>
             </div>
 
