@@ -116,6 +116,8 @@ function ChamCong() {
       return;
     }
 
+    
+
     setBulkUpdateLoading(true);
 
     try {
@@ -1003,69 +1005,72 @@ function ChamCong() {
           </div>
         )}
 
-        {/* *** THÊM MỚI: Các nút chấm công hàng loạt *** */}
-        <div className="mb-4">
-          <div className="card border-primary">
-            <div className="card-header bg-primary text-white">
-              <h6 className="mb-0">
-                <i className="ri-group-line me-2"></i>
-                Chấm công hàng loạt cho khoa phòng
-              </h6>
-            </div>
-            <div className="card-body">
-              <div className="row">
-                <div className="col-md-6">
-                  <h6 className="text-success mb-3">Ca Sáng (Shift 1)</h6>
-                  <div className="d-flex gap-2 mb-2">
-                    <button
-                      className="btn btn-success"
-                      onClick={() => handleBulkChamCong('LÀM', 1)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' || userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP'}
-                    >
-                      <i className="ri-check-line me-1"></i>
-                      Tất cả LÀM - Ca Sáng
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      onClick={() => handleBulkChamCong('NGHỈ', 1)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
-                    >
-                      <i className="ri-close-line me-1"></i>
-                      Tất cả NGHỈ - Ca Sáng
-                    </button>
-                  </div>
-                </div>
-                <div className="col-md-6">
-                  <h6 className="text-info mb-3">Ca Chiều (Shift 2)</h6>
-                  <div className="d-flex gap-2 mb-2">
-                    <button
-                      className="btn btn-success"
-                      onClick={() => handleBulkChamCong('LÀM', 2)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
-                    >
-                      <i className="ri-check-line me-1"></i>
-                      Tất cả LÀM - Ca Chiều
-                    </button>
-                    <button
-                      className="btn btn-danger"
-                      onClick={() => handleBulkChamCong('NGHỈ', 2)}
-                      disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG' && userRole !== 'NGUOITONGHOP' && userRole !== 'NGUOITONGHOP_1KP'}
-                    >
-                      <i className="ri-close-line me-1"></i>
-                      Tất cả NGHỈ - Ca Chiều
-                    </button>
-                  </div>
-                </div>
+        {/* *** THÊM MỚI: Các nút chấm công hàng loạt - Chỉ hiển thị cho ADMIN và NGUOICHAMCONG *** */}
+        {(userRole === 'ADMIN' || userRole === 'NGUOICHAMCONG') && (
+          <div className="mb-4">
+            <div className="card border-primary">
+              <div className="card-header bg-primary text-white">
+                <h6 className="mb-0">
+                  <i className="ri-group-line me-2"></i>
+                  Chấm công hàng loạt cho khoa phòng
+                </h6>
               </div>
-              {((!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG') || userRole === 'NGUOITONGHOP' || userRole === 'NGUOITONGHOP_1KP') && (
-                <div className="alert alert-warning mb-0 mt-2">
-                  <i className="ri-alert-line me-2"></i>
-                  Vui lòng chọn khoa phòng để sử dụng tính năng chấm công hàng loạt
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-6">
+                    <h6 className="text-success mb-3">Ca Sáng (Shift 1)</h6>
+                    <div className="d-flex gap-2 mb-2">
+                      <button
+                        className="btn btn-success"
+                        onClick={() => handleBulkChamCong('LÀM', 1)}
+                        disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG'}
+                      >
+                        <i className="ri-check-line me-1"></i>
+                        Tất cả LÀM - Ca Sáng
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => handleBulkChamCong('NGHỈ', 1)}
+                        disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG'}
+                      >
+                        <i className="ri-close-line me-1"></i>
+                        Tất cả NGHỈ - Ca Sáng
+                      </button>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <h6 className="text-info mb-3">Ca Chiều (Shift 2)</h6>
+                    <div className="d-flex gap-2 mb-2">
+                      <button
+                        className="btn btn-success"
+                        onClick={() => handleBulkChamCong('LÀM', 2)}
+                        disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG'}
+                      >
+                        <i className="ri-check-line me-1"></i>
+                        Tất cả LÀM - Ca Chiều
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => handleBulkChamCong('NGHỈ', 2)}
+                        disabled={!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG'}
+                      >
+                        <i className="ri-close-line me-1"></i>
+                        Tất cả NGHỈ - Ca Chiều
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {(!filterKhoaPhongId && userRole !== 'NGUOICHAMCONG') && (
+                  <div className="alert alert-warning mb-0 mt-2">
+                    <i className="ri-alert-line me-2"></i>
+                    Vui lòng chọn khoa phòng để sử dụng tính năng chấm công hàng loạt
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {(userRole === 'ADMIN' || userRole === 'NGUOICHAMCONG') && (
           <div className="mb-4">
