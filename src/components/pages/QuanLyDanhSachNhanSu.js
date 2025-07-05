@@ -124,34 +124,56 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
-  const preparePayload = () => {
-    const formattedNgaySinh = currentNhanVien.ngayThangNamSinh
-      ? format(currentNhanVien.ngayThangNamSinh, 'dd/MM/yyyy')
-      : null;
+const preparePayload = () => {
+  // *** FIX: Xử lý ngày sinh an toàn, tránh timezone issue ***
+  const formattedNgaySinh = currentNhanVien.ngayThangNamSinh
+    ? formatDateForServer(currentNhanVien.ngayThangNamSinh)
+    : null;
 
-    const processedMaNV = currentNhanVien.maNV && currentNhanVien.maNV.trim()
-      ? currentNhanVien.maNV.trim()
-      : null;
+  const processedMaNV = currentNhanVien.maNV && currentNhanVien.maNV.trim()
+    ? currentNhanVien.maNV.trim()
+    : null;
 
-    const processedSDT = currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim()
-      ? currentNhanVien.soDienThoai.trim()
-      : null;
+  const processedSDT = currentNhanVien.soDienThoai && currentNhanVien.soDienThoai.trim()
+    ? currentNhanVien.soDienThoai.trim()
+    : null;
 
-    // *** THAY ĐỔI: Email có thể null ***
-    const processedEmail = currentNhanVien.email && currentNhanVien.email.trim()
-      ? currentNhanVien.email.trim()
-      : null;
+  const processedEmail = currentNhanVien.email && currentNhanVien.email.trim()
+    ? currentNhanVien.email.trim()
+    : null;
 
-    return {
-      hoTen: currentNhanVien.hoTen.trim(),
-      email: processedEmail, // Thay đổi từ currentNhanVien.email.trim() thành processedEmail
-      maNV: processedMaNV,
-      ngayThangNamSinh: formattedNgaySinh,
-      soDienThoai: processedSDT,
-      khoaPhong: { id: currentNhanVien.khoaPhong.id },
-      chucVu: currentNhanVien.chucVu.id ? { id: currentNhanVien.chucVu.id } : null,
-    };
+  return {
+    hoTen: currentNhanVien.hoTen.trim(),
+    email: processedEmail,
+    maNV: processedMaNV,
+    ngayThangNamSinh: formattedNgaySinh,
+    soDienThoai: processedSDT,
+    khoaPhong: { id: currentNhanVien.khoaPhong.id },
+    chucVu: currentNhanVien.chucVu.id ? { id: currentNhanVien.chucVu.id } : null,
   };
+};
+
+// *** THÊM HÀM MỚI: Format ngày cho server (tránh timezone issue) ***
+const formatDateForServer = (date) => {
+  if (!date) return null;
+  
+  // Sử dụng getFullYear(), getMonth(), getDate() để lấy ngày local
+  // Tránh chuyển đổi timezone khi gửi lên server
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // getMonth() trả về 0-11
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  const formatted = `${day}/${month}/${year}`;
+  console.log('🗓️ Date conversion:', {
+    originalDate: date,
+    localYear: year,
+    localMonth: month,
+    localDay: day,
+    formatted: formatted
+  });
+  
+  return formatted;
+};
 
   const validateForm = () => {
     if (!currentNhanVien.hoTen || !currentNhanVien.hoTen.trim()) {
@@ -246,54 +268,75 @@ function QuanLyDanhSachNhanSu() {
   // *** THAY THẾ ĐOẠN CODE TRONG openModal function (khoảng dòng 220-240) ***
 
   const openModal = (nhanVien = null) => {
-    setIsEdit(!!nhanVien);
-    if (nhanVien) {
-      const parsedDate = nhanVien.ngayThangNamSinh
-        ? parse(nhanVien.ngayThangNamSinh, 'dd/MM/yyyy', new Date())
-        : null;
-      setCurrentNhanVien({
-        ...nhanVien,
-        ngayThangNamSinh: parsedDate,
-        khoaPhong: { id: nhanVien.khoaPhong?.id || '' },
-        chucVu: { id: nhanVien.chucVu?.id || '' },
-        maNV: nhanVien.maNV || '',
-        soDienThoai: nhanVien.soDienThoai || '',
-      });
-    } else {
-      // *** CẬP NHẬT: Khi thêm mới, set khoa phòng mặc định cho restricted roles ***
-      let defaultKhoaPhongId = '';
-
-      if (role === 'NGUOICHAMCONG' || role === 'NGUOITONGHOP_1KP') {
-        // Các role này chỉ được thêm nhân viên vào khoa phòng của mình
-        defaultKhoaPhongId = khoaPhongId;
-      } else if (role === 'ADMIN' || role === 'NGUOITONGHOP') {
-        // ADMIN và NGUOITONGHOP có thể chọn, nhưng ưu tiên filter hiện tại nếu có
-        if (selectedKhoaPhongFilter) {
-          defaultKhoaPhongId = selectedKhoaPhongFilter;
+  setIsEdit(!!nhanVien);
+  if (nhanVien) {
+    // *** FIX: Parse ngày sinh an toàn ***
+    let parsedDate = null;
+    if (nhanVien.ngayThangNamSinh) {
+      try {
+        const [day, month, year] = nhanVien.ngayThangNamSinh.split('/');
+        if (day && month && year) {
+          // Tạo Date object với local timezone
+          parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          
+          // Validate
+          if (isNaN(parsedDate.getTime())) {
+            parsedDate = null;
+            console.error('Invalid date:', nhanVien.ngayThangNamSinh);
+          }
         }
-        // Không set mặc định nếu không có filter (để user tự chọn)
+      } catch (error) {
+        console.error('Date parsing error:', error);
+        parsedDate = null;
       }
-
-      console.log('🏥 Default khoa phòng for new employee:', {
-        role,
-        userKhoaPhongId: khoaPhongId,
-        selectedFilter: selectedKhoaPhongFilter,
-        defaultSet: defaultKhoaPhongId
-      });
-
-      setCurrentNhanVien({
-        id: null,
-        hoTen: '',
-        email: '',
-        maNV: '',
-        ngayThangNamSinh: null,
-        soDienThoai: '',
-        khoaPhong: { id: defaultKhoaPhongId },
-        chucVu: { id: '' },
-      });
     }
-    setShowModal(true);
-  };
+    
+    console.log('🔄 Edit mode - Date parsing:', {
+      originalString: nhanVien.ngayThangNamSinh,
+      parsedDate: parsedDate,
+      parsedString: parsedDate ? parsedDate.toString() : 'null'
+    });
+
+    setCurrentNhanVien({
+      ...nhanVien,
+      ngayThangNamSinh: parsedDate,
+      khoaPhong: { id: nhanVien.khoaPhong?.id || '' },
+      chucVu: { id: nhanVien.chucVu?.id || '' },
+      maNV: nhanVien.maNV || '',
+      soDienThoai: nhanVien.soDienThoai || '',
+    });
+  } else {
+    // Phần code thêm mới giữ nguyên như cũ
+    let defaultKhoaPhongId = '';
+
+    if (role === 'NGUOICHAMCONG' || role === 'NGUOITONGHOP_1KP') {
+      defaultKhoaPhongId = khoaPhongId;
+    } else if (role === 'ADMIN' || role === 'NGUOITONGHOP') {
+      if (selectedKhoaPhongFilter) {
+        defaultKhoaPhongId = selectedKhoaPhongFilter;
+      }
+    }
+
+    console.log('🏥 Default khoa phòng for new employee:', {
+      role,
+      userKhoaPhongId: khoaPhongId,
+      selectedFilter: selectedKhoaPhongFilter,
+      defaultSet: defaultKhoaPhongId
+    });
+
+    setCurrentNhanVien({
+      id: null,
+      hoTen: '',
+      email: '',
+      maNV: '',
+      ngayThangNamSinh: null,
+      soDienThoai: '',
+      khoaPhong: { id: defaultKhoaPhongId },
+      chucVu: { id: '' },
+    });
+  }
+  setShowModal(true);
+};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -306,23 +349,47 @@ function QuanLyDanhSachNhanSu() {
     }
   };
 
-  const handleDateChange = (date) => {
-    setCurrentNhanVien({ ...currentNhanVien, ngayThangNamSinh: date });
-  };
+const handleDateChange = (date) => {
+  console.log('📅 Date selected:', {
+    selectedDate: date,
+    dateString: date ? date.toString() : 'null',
+    getDate: date ? date.getDate() : 'null',
+    getMonth: date ? date.getMonth() + 1 : 'null',
+    getFullYear: date ? date.getFullYear() : 'null'
+  });
+  
+  setCurrentNhanVien({ ...currentNhanVien, ngayThangNamSinh: date });
+};
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const date = parse(dateString, 'dd/MM/yyyy', new Date());
-      return format(date, 'dd/MM/yyyy');
-    } catch {
-      return '-';
-    }
-  };
+  if (!dateString) return '-';
+  
+  try {
+    // Parse từ string dd/MM/yyyy thành Date object
+    const [day, month, year] = dateString.split('/');
+    if (!day || !month || !year) return '-';
+    
+    // Tạo date object an toàn (tránh timezone issue)
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    
+    // Validate date
+    if (isNaN(date.getTime())) return '-';
+    
+    // Format lại thành dd/MM/yyyy
+    const formattedDay = String(date.getDate()).padStart(2, '0');
+    const formattedMonth = String(date.getMonth() + 1).padStart(2, '0');
+    const formattedYear = date.getFullYear();
+    
+    return `${formattedDay}/${formattedMonth}/${formattedYear}`;
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return '-';
+  }
+};
 
   return (
     <div className="container-fluid px-4 py-3" style={{ backgroundColor: '#f8f9fc', minHeight: '100vh' }}>
